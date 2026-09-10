@@ -1,0 +1,12 @@
+GEOREFERENCEMENT — famille A (le fichier)
+
+Role : la position du modele dans le monde. Reperes, origine interne,
+altitudes et niveaux, insertion des nuages, export geolocalise.
+
+Y va : B09 parametre Altitude_Absolue - B10 audit des altitudes
+       B11 lecture de l'origine interne - B12 recalage (suspendu)
+
+ATTENTION : domaine partage avec dev\ivion_api (section Passerelle du hub).
+Tout script touchant aux coordonnees se lit des DEUX cotes avant d'etre ecrit.
+
+Carte complete : docs\organisation_ruban.md
