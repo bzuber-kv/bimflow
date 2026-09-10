@@ -1,0 +1,6 @@
+title: Inventaire detaille
+tooltip: >
+  B16 - Ce qu'il y a vraiment dans un sous-projet fourre-tout :
+  categorie, type, niveau, vue-specifique, proprietaire.
+  LECTURE SEULE - aucune ecriture dans le modele.
+author: Keovia Solutions

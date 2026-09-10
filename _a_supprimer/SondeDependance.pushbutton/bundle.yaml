@@ -1,0 +1,6 @@
+title: Sonde de dependance
+tooltip: >
+  B18 - Demande a Revit ce que la suppression d'un objet emporterait,
+  puis ANNULE systematiquement. Aucune ecriture n'est validee.
+  A lancer de preference sur une copie locale detachee.
+author: Keovia Solutions
