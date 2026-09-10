@@ -1,29 +1,52 @@
 # -*- coding: utf-8 -*-
-"""B15 — Export de l'inventaire, element par element. LECTURE SEULE.
+"""B15 - Export de l'inventaire, element par element. LECTURE SEULE.
 
-Repo bimflow — extension pyRevit. Portee : GENERIQUE (toute maquette Revit).
+Repo bimflow - extension pyRevit. Portee : GENERIQUE (toute maquette Revit).
 Cas d'origine : affaire A_049_TheStudy, 2026-09-10.
 
-Ecrit un CSV avec UNE LIGNE PAR ELEMENT : identifiant, categorie, type,
-sous-projet, specifique a une vue. Passe sur deux etats d'un meme modele,
-il permet de savoir NOMMEMENT ce qui a change entre les deux — et pas
-seulement combien.
+Ecrit un CSV : une ligne par element, avec son identifiant et son
+sous-projet. Passe sur deux etats d'un meme modele, il dit NOMMEMENT ce
+qui a change entre les deux, et pas seulement combien.
 
 Les ElementId sont stables dans un meme lignage de document (copie,
-detachement, Enregistrer sous), donc la comparaison par identifiant est
-fiable entre une copie locale et le modele d'origine.
+detachement, Enregistrer sous) : la comparaison par identifiant est donc
+fiable entre une copie locale et son original.
 
-Ce que ca rend actionnable : un identifiant retrouve dans l'etat ancien et
-absent du nouveau se selectionne dans l'ancien par
-Gerer > Selectionner par ID — on VOIT ce qui a disparu.
+Un identifiant present dans l'etat ancien et absent du nouveau se
+selectionne dans l'ancien par Gerer > Selectionner par ID : on VOIT ce qui
+a disparu, avec sa categorie et son type, sans que le script ait besoin de
+les lire.
+
+-------------------------------------------------------------------------
+VERSION 2 - 2026-09-10. La v1 faisait planter Revit 2026.4.
+
+Cause : la v1 resolvait, pour chacun des 21000 elements, sa categorie, son
+type (via GetTypeId puis doc.GetElement) et son nom - donc elle allait
+chercher d'AUTRES elements du document pendant qu'un FilteredElementCollector
+etait en cours d'iteration. Le collecteur evalue paresseusement ; ce motif
+est une source documentee d'instabilite et produit une AccessViolationException
+(lecture en memoire protegee). Ce type d'erreur N'EST PAS RATTRAPABLE par un
+try/except : le processus meurt. Les gardes de la v1 donnaient une illusion
+de robustesse.
+
+Correction : cette version ne touche AUCUNE propriete d'element. Elle
+demande a Revit, sous-projet par sous-projet, la collection d'identifiants
+qu'il contient (ElementWorksetFilter + ToElementIds). Aucune instanciation,
+aucun GetElement, aucun acces a .Name, .Category ou .ViewSpecific.
+-------------------------------------------------------------------------
 
 Contrainte d'environnement (bimflow_CONTEXT, 2026-08-27) : moteur IPY342,
-aucun CPython en netcore. PAS de ligne shebang « python3 » en tete.
+aucun CPython en netcore. PAS de ligne shebang python3 en tete.
 Niveau de langage Python 3.4 : pas de f-strings.
+
+Ce fichier est volontairement ecrit en ASCII pur : test de l'hypothese
+selon laquelle le parseur de metadonnees de pyRevit sous IronPython 3
+echoue sur les caracteres non-ASCII des docstrings (erreur AttributeError
+ligne 0/0 au chargement).
 """
 
 __title__ = "Export\ninventaire"
-__doc__ = "B15 - Un CSV, une ligne par element (Id, categorie, type, sous-projet). Lecture seule."
+__doc__ = "B15 - Un CSV, une ligne par element (Id, sous-projet). Lecture seule, aucune propriete lue."
 __author__ = "Keovia Solutions"
 
 import io
@@ -33,113 +56,76 @@ import datetime
 from System import Environment
 
 from Autodesk.Revit.DB import (
+    ElementWorksetFilter,
     FilteredElementCollector,
     FilteredWorksetCollector,
-    WorksetId,
     WorksetKind,
 )
 
 from pyrevit import revit, script
 
+def id_de(eid):
+    """Identifiant entier d'un ElementId, quelle que soit la version de Revit.
+
+    Revit 2024+ : .Value (Int64). Le .IntegerValue (Int32) historique est
+    supprime - mesure sur Revit 2026.4 le 2026-09-10 : AttributeError.
+    ATTENTION : WorksetId.IntegerValue, lui, existe toujours - c'est une
+    autre classe. Ne pas "corriger" B13 qui s'en sert.
+    """
+    try:
+        return eid.Value
+    except AttributeError:
+        return eid.IntegerValue
+
+
 doc = revit.doc
 out = script.get_output()
-out.set_title("Keovia — export de l'inventaire")
+out.set_title("Keovia - export de l'inventaire")
 
-out.print_md("# Export de l'inventaire — lecture seule")
+out.print_md("# Export de l'inventaire - lecture seule")
 out.print_md("Modele : **{}**".format(doc.Title))
 out.print_md("Date : {}".format(datetime.datetime.now().strftime("%Y-%m-%d %H:%M")))
+out.print_md("_Version 2 : aucune propriete d'element n'est lue._")
 
 if not doc.IsWorkshared:
-    out.print_md("> Ce modele n'est pas en travail partage — la colonne sous-projet sera vide.")
+    out.print_md("> **Ce modele n'est pas en travail partage.** Rien a inventorier par sous-projet.")
+    script.exit()
 
-# --------------------------------------------------- avertissement prealable
-if doc.IsWorkshared:
-    fermes = [ws.Name for ws in FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset)
-              if not ws.IsOpen]
-    if fermes:
-        out.print_md(
-            "> **ATTENTION — {} sous-projet(s) ferme(s) : {}.** Leurs elements ne "
-            "sont pas charges en memoire et n'apparaitront PAS dans l'export. "
-            "Ouvre tous les sous-projets et relance, sinon la comparaison sera "
-            "fausse.".format(len(fermes), ", ".join(fermes))
-        )
+# ------------------------------------------------------- controle prealable
+user_ws = list(FilteredWorksetCollector(doc).OfKind(WorksetKind.UserWorkset))
 
-# ------------------------------------------------------------------- cache
-wst = doc.GetWorksetTable() if doc.IsWorkshared else None
-_cache = {}
+fermes = [ws.Name for ws in user_ws if not ws.IsOpen]
+if fermes:
+    out.print_md(
+        "> **ARRET - {} sous-projet(s) ferme(s) : {}.**\n"
+        "> Leurs elements ne sont pas charges en memoire : ils manqueraient a "
+        "l'export, et la comparaison inventerait des disparitions. Ouvre tous "
+        "les sous-projets (Collaborer > Sous-projets > Ouvrir) et relance."
+        .format(len(fermes), ", ".join(fermes))
+    )
+    script.exit()
 
+# --------------------------------------------------------- collecte des Id
+# Total du document : une seule collection materialisee, aucune propriete lue.
+ids_tous = set()
+for eid in FilteredElementCollector(doc).WhereElementIsNotElementType().ToElementIds():
+    ids_tous.add(id_de(eid))
 
-def infos_ws(wsid_int):
-    if wsid_int not in _cache:
-        nom, genre = "", ""
-        if wst is not None:
-            try:
-                ws = wst.GetWorkset(WorksetId(wsid_int))
-                nom, genre = ws.Name, str(ws.Kind)
-            except Exception:
-                nom, genre = "(id {})".format(wsid_int), "?"
-        _cache[wsid_int] = (nom, genre)
-    return _cache[wsid_int]
+# Par sous-projet utilisateur : c'est Revit qui filtre, pas nous.
+par_ws = {}
+for ws in user_ws:
+    col = FilteredElementCollector(doc) \
+        .WherePasses(ElementWorksetFilter(ws.Id)) \
+        .WhereElementIsNotElementType()
+    ids = set()
+    for eid in col.ToElementIds():
+        ids.add(id_de(eid))
+    par_ws[ws.Name] = ids
 
-
-def texte(valeur):
-    """Neutralise les separateurs pour ne pas casser le CSV."""
-    if valeur is None:
-        return u""
-    return u"{}".format(valeur).replace(u";", u",").replace(u"\n", u" ").replace(u"\r", u" ")
-
-
-def nom_de(el):
-    try:
-        return el.Name
-    except Exception:
-        return u""
-
-
-# ------------------------------------------------------------------ passe
-lignes = []
-par_genre = {}
-
-for el in FilteredElementCollector(doc).WhereElementIsNotElementType():
-    try:
-        eid = el.Id.IntegerValue
-    except Exception:
-        continue
-
-    try:
-        wsid = el.WorksetId.IntegerValue
-    except Exception:
-        wsid = -1
-    ws_nom, ws_genre = infos_ws(wsid) if wsid >= 0 else (u"", u"")
-    par_genre[ws_genre] = par_genre.get(ws_genre, 0) + 1
-
-    cat = u""
-    try:
-        if el.Category is not None:
-            cat = el.Category.Name
-    except Exception:
-        pass
-
-    type_nom = u""
-    try:
-        tid = el.GetTypeId()
-        if tid is not None and tid.IntegerValue > 0:
-            t = doc.GetElement(tid)
-            if t is not None:
-                type_nom = nom_de(t)
-    except Exception:
-        pass
-
-    spec_vue = u"1"
-    try:
-        spec_vue = u"1" if el.ViewSpecific else u"0"
-    except Exception:
-        spec_vue = u""
-
-    lignes.append(u";".join([
-        texte(eid), texte(cat), texte(type_nom),
-        texte(nom_de(el)), texte(ws_nom), texte(ws_genre), spec_vue,
-    ]))
+dans_user = set()
+for ids in par_ws.values():
+    dans_user |= ids
+hors_user = ids_tous - dans_user
 
 # ------------------------------------------------------------------- CSV
 bureau = Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
@@ -149,29 +135,40 @@ chemin = os.path.join(bureau, "inventaire_{}_{}.csv".format(titre, horo))
 
 try:
     with io.open(chemin, "w", encoding="utf-8-sig") as f:
-        f.write(u"Id;Categorie;Type;Nom;SousProjet;GenreSousProjet;SpecVue\n")
-        for l in lignes:
-            f.write(l + u"\n")
-    out.print_md("**{} elements exportes.**".format(len(lignes)))
-    out.print_md("CSV ecrit : `{}`".format(chemin))
+        f.write(u"Id;SousProjet\n")
+        for nom in sorted(par_ws.keys(), key=lambda s: s.lower()):
+            for i in sorted(par_ws[nom]):
+                f.write(u"{};{}\n".format(i, nom.replace(u";", u",")))
+        for i in sorted(hors_user):
+            f.write(u"{};(hors sous-projet utilisateur)\n".format(i))
 except Exception as ex:
     out.print_md("> **Echec de l'ecriture du CSV** : `{}`".format(ex))
     script.exit()
 
 # ---------------------------------------------------------------- resume
-resume = [[g if g else u"(inconnu)", n] for g, n in sorted(par_genre.items(), key=lambda x: -x[1])]
+lignes = []
+for nom in sorted(par_ws.keys(), key=lambda s: s.lower()):
+    lignes.append([nom, len(par_ws[nom])])
+lignes.append([u"(hors sous-projet utilisateur)", len(hors_user)])
+
 out.print_table(
-    table_data=resume,
-    title="Repartition par genre de sous-projet",
-    columns=["Genre", "Elements"],
+    table_data=lignes,
+    title="Elements par sous-projet",
+    columns=["Sous-projet", "Elements"],
 )
+
+out.print_md("**Total dans les sous-projets utilisateur : {}**".format(len(dans_user)))
+out.print_md("**Total instances du document : {}**".format(len(ids_tous)))
+out.print_md("**{} lignes ecrites.**".format(len(ids_tous)))
+out.print_md("CSV : `{}`".format(chemin))
 
 out.print_md(
     "\n---\n"
-    "**Mode d'emploi.** Passe ce bouton sur les DEUX etats a comparer (par exemple "
-    "la sauvegarde datee et le modele courant), tous sous-projets ouverts. Les deux "
-    "CSV portent le nom du modele et l'horodatage : ils ne s'ecrasent pas.\n\n"
-    "Un identifiant present dans l'etat ancien et absent du nouveau se retrouve "
-    "dans l'ancien par **Gerer > Selectionner par ID** — c'est la seule facon de "
-    "_voir_ ce qui a disparu."
+    "**Mode d'emploi.** Passe ce bouton sur les DEUX etats a comparer, tous "
+    "sous-projets ouverts. Les deux CSV portent le nom du modele et "
+    "l'horodatage : ils ne s'ecrasent pas.\n\n"
+    "Un identifiant present dans l'etat ancien et absent du nouveau se "
+    "retrouve dans l'ancien par **Gerer > Selectionner par ID**. C'est la "
+    "seule facon de _voir_ ce qui a disparu - et c'est plus sur que de faire "
+    "lire au script des proprietes qu'il n'a pas besoin de connaitre."
 )
