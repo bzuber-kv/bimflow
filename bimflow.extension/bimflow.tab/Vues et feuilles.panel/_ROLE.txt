@@ -1,0 +1,9 @@
+VUES ET FEUILLES — famille A (le fichier)
+
+Role : la couche documentaire. Arborescence et classement des vues, gabarits
+de vue, feuilles, export et nommage des livrables.
+
+Y va : B01 planche-contact - B04 audit du classement des vues
+       B07 export batch et nommage
+
+Carte complete : docs\organisation_ruban.md

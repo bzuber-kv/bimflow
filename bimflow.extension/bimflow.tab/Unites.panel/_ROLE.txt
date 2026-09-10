@@ -1,0 +1,12 @@
+UNITES — famille A (le fichier)
+
+Role : valeurs et arrondis. Detection des valeurs qui ne tombent pas sur la
+trame, conversions.
+
+Y va : B02 audit des valeurs imperiales non-propres - B03 convertisseur
+
+Portee reduite depuis la decision mm/SI : l'imperial n'est plus une unite de
+travail mais de sortie. Sert surtout aux fichiers repris de tiers et aux
+familles heritees.
+
+Carte complete : docs\organisation_ruban.md

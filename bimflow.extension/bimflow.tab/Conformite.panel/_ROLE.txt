@@ -1,0 +1,12 @@
+CONFORMITE — famille A (le fichier)
+
+Role : verifier une maquette contre le plan qualite. Nommage, sous-projets,
+filtres, valeurs de parametres, coherence de la federee.
+
+Y va : B05 audit de conformite federee
+
+Particularite : seul panneau dont la sortie est AUSSI un livrable client
+potentiel, et pas seulement un outil interne. Bloque par S1 — sans regles
+ecrites, il n'y a rien a auditer.
+
+Carte complete : docs\organisation_ruban.md

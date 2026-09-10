@@ -1,0 +1,34 @@
+title: "Recalage\nglobal"
+author: Keovia Solutions inc.
+tooltip: >-
+  ⚠ NE JAMAIS APPLIQUER SANS AVOIR PASSÉ « ESSAI DE STRATÉGIES ».
+
+  Sur un modèle contenant des objets à géométrie redéfinie — dalles à forme
+  modifiée notamment —, le recalage DÉTRUIT des éléments. Mesuré le 2026-08-27
+  sur sept stratégies : aucune ne l'évite. C'est une limite de Revit documentée
+  par Autodesk, pas un défaut de l'outil.
+
+  L'essai de stratégies ne modifie rien et NOMME les éléments qui seraient
+  détruits. Il rend la décision possible : renoncer, ou budgéter la reprise.
+
+  Reste pertinent sur un modèle propre, et quand le recalage est critique pour
+  la livraison. Voir docs/recalage_global.md §5 ter.
+
+  ---
+
+  Déplace tous les éléments du modèle d'un vecteur donné en mm, dans les axes
+  du projet — donc relativement à l'origine interne, qui ne bouge pas.
+
+  Les trois repères (origine interne, point de base, point topographique) sont
+  exclus : le recalage décale la géométrie SOUS les repères, il ne redéfinit
+  pas le système de coordonnées partagées.
+
+  Les NUAGES DE POINTS ne sont PAS déplacés : le lien est à recréer après le
+  recalage, un nuage recalé en amont n'étant généralement plus valide. Le
+  rapport et la boîte de confirmation le rappellent.
+
+  Une transaction, un appel MoveElements en bloc par option de conception.
+  Dépinglage et repinglage automatiques. Mode simulation obligatoire avant
+  d'agir. Journal Markdown écrit à côté du modèle.
+
+  À exécuter sur une COPIE DÉTACHÉE.

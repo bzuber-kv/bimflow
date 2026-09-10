@@ -1,0 +1,14 @@
+CALAGE PROJET — famille A (le fichier)
+
+Role : mettre le fichier d'aplomb. Ce qui definit l'organisation du projet,
+independamment de ce qu'il contient : sous-projets, propagation des normes,
+cartouche et identite, parametres partages.
+
+Y va : B06 propagation des normes - B08 cartouche / rebranding
+       B13 audit sous-projets - B14 migration sous-projets
+
+Note : B08 touche un objet documentaire mais c'est une normalisation
+ponctuelle d'un fichier repris, pas de la production de documents.
+Il reste ici, pas dans « Vues et feuilles ».
+
+Carte complete : docs\organisation_ruban.md
