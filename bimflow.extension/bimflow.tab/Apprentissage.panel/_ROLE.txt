@@ -1,0 +1,9 @@
+APPRENTISSAGE — hors taxonomie
+
+Bac a sable. Essais, scripts jetables, verification que pyRevit charge.
+Rien de ce qui est ici n'est un outil de production : pas de garantie,
+pas de documentation, supprimable sans preavis.
+
+Panneau candidat a la suppression une fois pyRevit maitrise.
+
+Carte complete : docs\organisation_ruban.md

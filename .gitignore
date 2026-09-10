@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -216,3 +216,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---- Keovia / bimflow ----
+# Revit : jamais de maquette ni de sauvegarde dans le repo
+*.rvt
+*.rfa
+*.rte
+*.[0-9][0-9][0-9][0-9].rvt
+
+# Dropbox / Windows
+.dropbox
+.dropbox.attr
+desktop.ini
+Thumbs.db
