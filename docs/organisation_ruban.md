@@ -3,6 +3,9 @@
 > Repo `bimflow` · créé le 2026-09-10 · portée : **générique**, gouvernance du repo
 > Statut : décidé (Bruno, 2026-09-10). Réversible à coût nul — un panneau est un
 > nom de dossier, le renommer ne casse aucune référence.
+> **Complété le 2026-09-12** : code couleur des icônes (§4, orientation O7) et état
+> réel du panneau `Calage projet` (§3), tous deux déjà appliqués au dépôt mais non
+> écrits ici.
 
 ---
 
@@ -12,7 +15,7 @@
 |---|---|---|
 | `.tab` | **la famille d'usage** — deux à terme, voir §2 | occupe du ruban en permanence |
 | `.panel` | **le domaine** — 4 à 8 boutons | l'unité de « ce que je vois d'un coup » |
-| bouton | **le mode** — `Audit …` en lecture, verbe d'action en écriture | — |
+| bouton | **le mode** — `Audit …` en lecture, verbe d'action en écriture ; la **couleur de l'icône** le redit avant le clic (§4) | — |
 
 **Règle : par domaine au panneau, par mode au bouton.**
 La tentation d'un panneau `Audit` et d'un panneau `Écriture` est à écarter : la
@@ -61,8 +64,18 @@ IFC), et pas de surprise Git entre postes.
 **Rôle.** Mettre le fichier d'aplomb : ce qui définit l'organisation du projet,
 indépendamment de ce qu'il contient. Sous-projets, propagation des normes,
 cartouche et identité, paramètres partagés.
-**Y va** : B06 (propagation des normes), B08 (cartouche / rebranding),
-**B13** (audit sous-projets), **B14** (migration sous-projets).
+**Installés — 5 boutons** : **B13** (audit sous-projets), **B15** (export de
+l'inventaire), **B16** (inventaire détaillé), **B17** (reclassement sous-projets),
+**B18a** (audit des références de niveau, lecture seule).
+**Attendus — 5 autres** : B06 (propagation des normes), B08 (cartouche /
+rebranding), B14 (migration sous-projets), B18b (contrôle de zone), B18c (niveaux,
+mode écriture).
+
+> ⚠ **5 boutons sur les 8 du grain, et 5 en attente : le seuil sera franchi.**
+> C'est le **déclencheur d'O1**, à rejuger à la **révision mensuelle** et non au
+> fil de l'eau. Le jour venu le découpage reste un déplacement de dossiers, pas
+> une refonte — chaque bouton sait déjà de quel domaine il relève.
+
 *Arbitrage tracé* : B08 touche un objet documentaire (le cartouche) mais c'est une
 **normalisation ponctuelle d'un fichier repris**, pas de la production de
 documents — il reste ici, pas dans `Vues et feuilles`.
@@ -97,7 +110,37 @@ filtres, valeurs de paramètres, cohérence de la fédérée.
 potentiel**, et pas seulement un outil interne. Bloqué par S1 — sans règles
 écrites, il n'y a rien à auditer.
 
-## 4. Ce qui reste ouvert
+## 4. Le code couleur des icônes — orientation O7
+
+Posé le 2026-09-10, en réponse à un irritant d'usage : *« en cliquant sur un bouton
+on engage une action sans pouvoir décider de l'annuler »*. La couleur de l'icône
+dit **ce que le bouton fait au modèle**, et elle le dit **avant le clic**.
+
+| Couleur | Sens |
+|---|---|
+| **Bleu** — `#195DB1` | **lecture seule**, aucune transaction |
+| **Orange** | **écrit dans le modèle** (une fois désarmé) |
+| **Violet** | ouvre une transaction **mais l'annule toujours** |
+
+*Seul le bleu a sa valeur relevée comme référence (au dépôt, le 2026-09-12).
+Orange et violet sont désignés par leur nom tant qu'une valeur n'a pas été relevée
+de la même façon.*
+
+**Complément indissociable.** Tout script d'écriture **démarre en simulation** et
+demande une **confirmation nommant la maquette**. C'est le sens de « une fois
+désarmé » : un bouton d'écriture ne doit jamais pouvoir agir d'un simple clic.
+
+**L'icône fait partie du livrable, pas de la finition.** Un bundle sans `icon.png`
+s'affiche **en texte nu** et **sort du code couleur** — il perd exactement
+l'information que le code couleur existe pour donner, et rien à l'écran ne signale
+le manque. Un bouton sans icône n'est pas fini.
+
+**Format.** **96×96, ARGB** — fond transparent, jamais un aplat opaque — et une
+**carte arrondie à fond clair** bordée de la couleur du mode. C'est cette forme
+commune, et pas le seul pictogramme, qui rend la famille reconnaissable à la
+taille où le ruban l'affiche réellement.
+
+## 5. Ce qui reste ouvert
 
 - L'ordre d'affichage des panneaux et des boutons suit l'alphabet par défaut.
   pyRevit expose une clé `layout` dans un `bundle.yaml` pour le forcer.
@@ -106,3 +149,7 @@ potentiel**, et pas seulement un outil interne. Bloqué par S1 — sans règles
 - Les panneaux de la famille B ne sont pas nommés : ils le seront quand le premier
   script métier arrivera, sur la même méthode — nommer au niveau du groupe qui
   tiendra 4 à 8 boutons, jamais au niveau d'un objet isolé.
+- **Le déclencheur d'O7 est atteint** *(2026-09-12)*. Un **quatrième mode d'action**
+  est apparu : **B19 écrit des fichiers, pas le modèle**. Trois couleurs ne
+  suffisent plus à décrire ce qu'un bouton fait. À rejuger à la révision mensuelle
+  — en attendant, **aucune quatrième couleur n'est inventée ici**.

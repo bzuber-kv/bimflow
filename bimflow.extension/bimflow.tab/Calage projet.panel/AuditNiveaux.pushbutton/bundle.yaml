@@ -1,0 +1,10 @@
+title: |-
+  Audit
+  niveaux
+tooltip: >-
+  Inventaire de toutes les références de niveau du modèle : quel paramètre porte
+  un niveau, lequel, à quelle altitude, et ce qui référence un niveau sans être
+  de la géométrie (vues en plan, plages de vue). Lecture seule — aucune
+  transaction. Sortie CSV + synthèse à l'écran.
+author: Keovia Solutions
+highlight: new
