@@ -224,6 +224,13 @@ __marimo__/
 *.rte
 *.[0-9][0-9][0-9][0-9].rvt
 
+# Boutons ecrits mais JAMAIS EXECUTES : ils n'entrent pas au depot tant
+# qu'ils n'ont pas tourne une fois. Ce dossier est a cote de
+# bimflow.extension/ et non dedans : pyRevit ne scanne que les dossiers
+# *.extension, donc rien de ce qui est ici n'apparait dans le ruban.
+# Ignore en bloc pour qu'un « git add -A » ne puisse pas le happer.
+/_non_eprouve/
+
 # Dropbox / Windows
 .dropbox
 .dropbox.attr

@@ -43,7 +43,7 @@ $gabaritLecture = @'
 # -*- coding: utf-8 -*-
 """__DOC__"""
 __title__ = "__TITRE__"
-__author__ = "Keovia Solutions"
+__author__ = "Keovia Solutions inc."
 
 from Autodesk.Revit.DB import FilteredElementCollector
 doc = __revit__.ActiveUIDocument.Document
