@@ -47,7 +47,7 @@ f-strings. Fichier en ASCII pur.
 
 __title__ = "Reclasser\nsous-projets"
 __doc__ = "B17 v3 - Vide un sous-projet fourre-tout par regles (systeme, famille, categorie). SIMULATION PAR DEFAUT. Ecrit dans le modele une fois desarme."
-__author__ = "Keovia Solutions"
+__author__ = "Keovia Solutions inc."
 
 import datetime
 

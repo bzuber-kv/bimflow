@@ -47,7 +47,7 @@ ligne 0/0 au chargement).
 
 __title__ = "Export\ninventaire"
 __doc__ = "B15 - Un CSV, une ligne par element (Id, sous-projet). Lecture seule, aucune propriete lue."
-__author__ = "Keovia Solutions"
+__author__ = "Keovia Solutions inc."
 
 import io
 import os

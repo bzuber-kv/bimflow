@@ -39,7 +39,7 @@ noms de sous-projets).
 
 __title__ = "Inventaire\ndetaille"
 __doc__ = "B16 v2 - Ce qu'il y a VRAIMENT dans le fourre-tout, et combien est reellement a reclasser (le reste suit son hote). Lecture seule."
-__author__ = "Keovia Solutions"
+__author__ = "Keovia Solutions inc."
 
 import io
 import os
