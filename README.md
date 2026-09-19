@@ -128,6 +128,11 @@ nomenclature entre modèles, échange avec un tiers ? Oui → paramètre **parta
 il entre ici et reçoit un GUID à vie. Non → paramètre **de projet**, porté par le
 gabarit, absent de ce fichier.
 
+**Source et copie.** `shared_parameters/keovia_socle_parametres.txt` est **LA
+source** : elle se modifie ici, dans le dépôt, et par PR. La copie que Revit lit
+sera déposée dans le **dossier ACC du projet** — *chemin à fixer* — et **ne
+s'édite jamais** : on la redépose entière depuis la source.
+
 Ne pas éditer à la main dans un tableur : passer par Revit ▸ *Gérer les
 paramètres partagés*. Détail et liaisons : [docs/parametres.md](docs/parametres.md).
 
