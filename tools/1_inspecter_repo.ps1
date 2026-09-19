@@ -3,7 +3,7 @@
 # LECTURE SEULE. Ne cree, ne modifie, ne supprime rien.
 # A lancer en premier, avant toute autre chose.
 #
-# Keovia Solutions - 2026-09-10 - cible pwsh 7, compatible 5.1
+# Keovia Solutions inc. - 2026-09-10 - cible pwsh 7, compatible 5.1
 
 param(
     [string]$Repo = "D:\Dropbox\Dev\bimflow"
