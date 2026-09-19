@@ -64,17 +64,26 @@ IFC), et pas de surprise Git entre postes.
 **Rôle.** Mettre le fichier d'aplomb : ce qui définit l'organisation du projet,
 indépendamment de ce qu'il contient. Sous-projets, propagation des normes,
 cartouche et identité, paramètres partagés.
-**Installés — 5 boutons** : **B13** (audit sous-projets), **B15** (export de
+**Installés — 11 boutons.**
+*Sous-projets et niveaux* : **B13** (audit sous-projets), **B15** (export de
 l'inventaire), **B16** (inventaire détaillé), **B17** (reclassement sous-projets),
-**B18a** (audit des références de niveau, lecture seule).
+**B18a** (audit des références de niveau).
+*Paramètres, versés le 2026-09-19* : `Audit paramètres`, `Paramètres natifs`,
+`Sonde vues` (lecture seule) · `Socle paramètres`, `Renommage paramètres`,
+`Nettoyage paramètres` (écriture).
 **Attendus — 5 autres** : B06 (propagation des normes), B08 (cartouche /
 rebranding), B14 (migration sous-projets), B18b (contrôle de zone), B18c (niveaux,
 mode écriture).
 
-> ⚠ **5 boutons sur les 8 du grain, et 5 en attente : le seuil sera franchi.**
-> C'est le **déclencheur d'O1**, à rejuger à la **révision mensuelle** et non au
-> fil de l'eau. Le jour venu le découpage reste un déplacement de dossiers, pas
-> une refonte — chaque bouton sait déjà de quel domaine il relève.
+> ⚠ **Le seuil d'O1 n'est plus à venir : il est franchi.** 11 boutons installés
+> pour un grain de 4 à 8, et 5 attendus. Les six outils de paramètres relèvent
+> bien du domaine — le rôle du panneau nomme les paramètres partagés — donc ce
+> n'est pas une erreur d'affectation, c'est **un domaine devenu trop gros pour un
+> panneau**.
+>
+> La coupure naturelle se lit dans la liste ci-dessus : *sous-projets et niveaux*
+> d'un côté, *paramètres* de l'autre. **À trancher à la révision mensuelle**, pas
+> au fil de l'eau. Le découpage reste un déplacement de dossiers.
 
 *Arbitrage tracé* : B08 touche un objet documentaire (le cartouche) mais c'est une
 **normalisation ponctuelle d'un fichier repris**, pas de la production de

@@ -78,15 +78,24 @@ ajouter `D:\Dropbox\Dev\bimflow` ▸ Save Settings and Reload.
 ```
 bimflow.extension/
 └── bimflow.tab/
+    ├── Calage projet.panel/             Sous-projets, niveaux, paramètres
     └── Georeferencement.panel/
         └── RecalageGlobal.pushbutton/    Recalage global du modèle
 docs/
-└── recalage_global.md                    Mode d'emploi et protocole de test
+├── recalage_global.md                    Mode d'emploi et protocole de test
+├── niveaux.md                            Ancrage aux niveaux (B18a)
+└── parametres.md                         Socle Keovia, audit et nettoyage
+shared_parameters/
+└── keovia_socle_parametres.txt           Source des GUID — voir ci-dessous
 ```
 
 | Outil | État | Documentation |
 |---|---|---|
 | Recalage global | Écrit, **non exécuté sur Revit** | [docs/recalage_global.md](docs/recalage_global.md) |
+| Socle de paramètres (6 boutons) | **Éprouvés en production le 2026-09-19** | [docs/parametres.md](docs/parametres.md) |
+
+*Tableau non exhaustif : il précède les outils sous-projets et niveaux, qui sont
+documentés dans `docs/`.*
 
 ## Discipline
 
@@ -96,6 +105,31 @@ docs/
 - Tout test se fait sur une **copie détachée**.
 - Un comportement Revit s'observe sur Revit avant de s'écrire en fiche.
   Tant qu'un protocole de test n'est pas passé, la documentation le dit.
+
+## Paramètres partagés — `shared_parameters/keovia_socle_parametres.txt`
+
+Ce fichier est la **source des GUID** du socle Keovia. Trois règles, et elles ne
+souffrent pas d'exception :
+
+- **Il se versionne.** Il entre au dépôt, et son historique est sa garantie.
+- **Il ne se régénère jamais.** Le régénérer fabriquerait de nouveaux GUID, et
+  tous les modèles déjà renseignés cesseraient de reconnaître leurs propres
+  champs.
+- **Un GUID retiré n'est jamais réattribué à autre chose.** Les GUID sortis du
+  socle restent **inscrits en commentaire en tête du fichier**, avec le nom
+  qu'ils portaient. Ce n'est pas de l'historique, c'est une **réservation** : un
+  GUID identifie une définition, pas un nom, et le réattribuer ferait que deux
+  choses différentes porteraient la même identité d'un modèle à l'autre — une
+  collision qui ne se verrait qu'à l'export, chez le destinataire.
+
+**Critère d'entrée, unique.** Quelque chose **hors du document** doit-il
+reconnaître ce champ — export IFC, appariement Ivion ou GMAO, étiquette,
+nomenclature entre modèles, échange avec un tiers ? Oui → paramètre **partagé**,
+il entre ici et reçoit un GUID à vie. Non → paramètre **de projet**, porté par le
+gabarit, absent de ce fichier.
+
+Ne pas éditer à la main dans un tableur : passer par Revit ▸ *Gérer les
+paramètres partagés*. Détail et liaisons : [docs/parametres.md](docs/parametres.md).
 
 ## Zones
 

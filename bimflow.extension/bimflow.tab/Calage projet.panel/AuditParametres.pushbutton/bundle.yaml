@@ -1,0 +1,15 @@
+title: |-
+  Audit
+  paramètres
+
+author: Keovia Solutions inc.
+
+tooltip: >
+  BLEU - lecture seule, aucune transaction.
+
+  Mesure les parametres de projet de la maquette ouverte : categories liees,
+  portee occurrence ou type, nombre d'objets porteurs, nombre reellement
+  renseignes, nombre de valeurs distinctes. Sortie tableau + CSV.
+
+  Il mesure, il ne conclut pas : « vide partout » n'est pas « supprimable ».
+  Ne voit que les parametres de projet, pas ceux portes par une famille.

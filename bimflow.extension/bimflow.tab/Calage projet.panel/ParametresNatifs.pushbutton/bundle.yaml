@@ -1,0 +1,14 @@
+title: |-
+  Paramètres
+  natifs
+
+author: Keovia Solutions inc.
+
+tooltip: >
+  BLEU - lecture seule, aucune transaction.
+
+  Releve, categorie par categorie, les parametres que Revit fournit lui-meme
+  (built-in), en occurrence et sur le type. Signale les parametres de projet
+  de la maquette qui portent le nom d'un natif - le doublon le plus couteux.
+
+  A relancer a chaque changement de version de Revit : la liste evolue.
