@@ -128,12 +128,13 @@ dit **ce que le bouton fait au modèle**, et elle le dit **avant le clic**.
 | Couleur | Sens |
 |---|---|
 | **Bleu** — `#195DB1` | **lecture seule**, aucune transaction |
-| **Orange** | **écrit dans le modèle** (une fois désarmé) |
+| **Orange** — `#C55901` | **écrit dans le modèle** (une fois désarmé) |
 | **Violet** | ouvre une transaction **mais l'annule toujours** |
 
-*Seul le bleu a sa valeur relevée comme référence (au dépôt, le 2026-09-12).
-Orange et violet sont désignés par leur nom tant qu'une valeur n'a pas été relevée
-de la même façon.*
+*Valeurs relevées au dépôt : le **bleu le 2026-09-12**, l'**orange le 2026-09-19**
+— une seule valeur pour l'orange, celle de B17, à laquelle les trois boutons
+d'écriture du socle de paramètres ont été ramenés le même jour. Le violet est
+désigné par son nom tant qu'une valeur n'a pas été relevée de la même façon.*
 
 **Complément indissociable — deux formes admises.** Un bouton d'écriture ne doit
 **jamais pouvoir agir d'un simple clic**. C'est l'exigence ; elle se tient de deux
