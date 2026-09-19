@@ -4,10 +4,8 @@
 > Portée : **générique** — le socle est un objet Keovia, pas un objet d'affaire.
 > Environnement : Revit 2026, pyRevit 6.5.5, moteur **IPY342** — pas de shebang
 > `#! python3`, niveau de langage Python 3.4 maximum (pas de f-strings).
-> Source des faits : les **six boutons ont tourné en production sur une maquette
-> réelle le 2026-09-19**. *Le nom de la maquette n'est pas consigné* — à inscrire
-> ici le jour où il l'est, comme `thestudy_CO_BAT` l'est dans
-> [`niveaux.md`](niveaux.md).
+> Source des faits : les **six boutons ont tourné en production le 2026-09-19 sur
+> `thestudy_CO_BAT`** (copie détachée).
 > **Confiance : DÉCIDÉ** pour la partie 1 (le socle est une règle, pas une
 > observation) · **MESURÉ** pour la partie 2 — observé, daté, et chacun de ces
 > faits a changé une décision.
@@ -222,6 +220,3 @@ connaît l'intention.
   par une famille chargée ne s'y trouve pas, et se retire dans l'éditeur de
   familles, pas ici. La mesure du dépôt est donc **partielle par construction** —
   à dire à chaque lecture du rapport.
-- **Le nom de la maquette d'épreuve n'est pas consigné.** Les faits du 2026-09-19
-  sont reproductibles par les mêmes boutons, mais pas encore rattachés à un
-  fichier nommé. À combler.
