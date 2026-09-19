@@ -3,6 +3,9 @@
 > Repo `bimflow` · créé le 2026-09-10 · portée : **générique**, gouvernance du repo
 > Statut : décidé (Bruno, 2026-09-10). Réversible à coût nul — un panneau est un
 > nom de dossier, le renommer ne casse aucune référence.
+> **Complété le 2026-09-12** : code couleur des icônes (§4, orientation O7) et état
+> réel du panneau `Calage projet` (§3), tous deux déjà appliqués au dépôt mais non
+> écrits ici.
 
 ---
 
@@ -12,7 +15,7 @@
 |---|---|---|
 | `.tab` | **la famille d'usage** — deux à terme, voir §2 | occupe du ruban en permanence |
 | `.panel` | **le domaine** — 4 à 8 boutons | l'unité de « ce que je vois d'un coup » |
-| bouton | **le mode** — `Audit …` en lecture, verbe d'action en écriture | — |
+| bouton | **le mode** — `Audit …` en lecture, verbe d'action en écriture ; la **couleur de l'icône** le redit avant le clic (§4) | — |
 
 **Règle : par domaine au panneau, par mode au bouton.**
 La tentation d'un panneau `Audit` et d'un panneau `Écriture` est à écarter : la
@@ -61,8 +64,27 @@ IFC), et pas de surprise Git entre postes.
 **Rôle.** Mettre le fichier d'aplomb : ce qui définit l'organisation du projet,
 indépendamment de ce qu'il contient. Sous-projets, propagation des normes,
 cartouche et identité, paramètres partagés.
-**Y va** : B06 (propagation des normes), B08 (cartouche / rebranding),
-**B13** (audit sous-projets), **B14** (migration sous-projets).
+**Installés — 11 boutons.**
+*Sous-projets et niveaux* : **B13** (audit sous-projets), **B15** (export de
+l'inventaire), **B16** (inventaire détaillé), **B17** (reclassement sous-projets),
+**B18a** (audit des références de niveau).
+*Paramètres, versés le 2026-09-19* : `Audit paramètres`, `Paramètres natifs`,
+`Sonde vues` (lecture seule) · `Socle paramètres`, `Renommage paramètres`,
+`Nettoyage paramètres` (écriture).
+**Attendus — 5 autres** : B06 (propagation des normes), B08 (cartouche /
+rebranding), B14 (migration sous-projets), B18b (contrôle de zone), B18c (niveaux,
+mode écriture).
+
+> ⚠ **Le seuil d'O1 n'est plus à venir : il est franchi.** 11 boutons installés
+> pour un grain de 4 à 8, et 5 attendus. Les six outils de paramètres relèvent
+> bien du domaine — le rôle du panneau nomme les paramètres partagés — donc ce
+> n'est pas une erreur d'affectation, c'est **un domaine devenu trop gros pour un
+> panneau**.
+>
+> La coupure naturelle se lit dans la liste ci-dessus : *sous-projets et niveaux*
+> d'un côté, *paramètres* de l'autre. **À trancher à la révision mensuelle**, pas
+> au fil de l'eau. Le découpage reste un déplacement de dossiers.
+
 *Arbitrage tracé* : B08 touche un objet documentaire (le cartouche) mais c'est une
 **normalisation ponctuelle d'un fichier repris**, pas de la production de
 documents — il reste ici, pas dans `Vues et feuilles`.
@@ -97,7 +119,51 @@ filtres, valeurs de paramètres, cohérence de la fédérée.
 potentiel**, et pas seulement un outil interne. Bloqué par S1 — sans règles
 écrites, il n'y a rien à auditer.
 
-## 4. Ce qui reste ouvert
+## 4. Le code couleur des icônes — orientation O7
+
+Posé le 2026-09-10, en réponse à un irritant d'usage : *« en cliquant sur un bouton
+on engage une action sans pouvoir décider de l'annuler »*. La couleur de l'icône
+dit **ce que le bouton fait au modèle**, et elle le dit **avant le clic**.
+
+| Couleur | Sens |
+|---|---|
+| **Bleu** — `#195DB1` | **lecture seule**, aucune transaction |
+| **Orange** — `#C55901` | **écrit dans le modèle** (une fois désarmé) |
+| **Violet** | ouvre une transaction **mais l'annule toujours** |
+
+*Valeurs relevées au dépôt : le **bleu le 2026-09-12**, l'**orange le 2026-09-19**
+— une seule valeur pour l'orange, celle de B17, à laquelle les trois boutons
+d'écriture du socle de paramètres ont été ramenés le même jour. Le violet est
+désigné par son nom tant qu'une valeur n'a pas été relevée de la même façon.*
+
+**Complément indissociable — deux formes admises.** Un bouton d'écriture ne doit
+**jamais pouvoir agir d'un simple clic**. C'est l'exigence ; elle se tient de deux
+façons, et **les deux satisfont O7** :
+
+**(a) Désarmement par constante.** Le script porte `SIMULATION = True` en tête de
+fichier ; passer en mode réel demande d'éditer le script, geste délibéré qui ne
+s'accomplit pas par inadvertance. *Forme de B17.*
+
+**(b) Plan affiché avant écriture, puis confirmation nommant la maquette.** Le
+script calcule ce qu'il ferait, l'**affiche en entier**, puis demande une
+confirmation dont le texte **nomme la maquette** — `Maquette : <titre>`. Rien
+n'est écrit avant ce oui. *Forme des trois boutons d'écriture du socle de
+paramètres.*
+
+Ce que la couleur orange annonce, c'est donc ce que le bouton **peut** faire,
+jamais ce qu'il fait au premier clic.
+
+**L'icône fait partie du livrable, pas de la finition.** Un bundle sans `icon.png`
+s'affiche **en texte nu** et **sort du code couleur** — il perd exactement
+l'information que le code couleur existe pour donner, et rien à l'écran ne signale
+le manque. Un bouton sans icône n'est pas fini.
+
+**Format.** **96×96, ARGB** — fond transparent, jamais un aplat opaque — et une
+**carte arrondie à fond clair** bordée de la couleur du mode. C'est cette forme
+commune, et pas le seul pictogramme, qui rend la famille reconnaissable à la
+taille où le ruban l'affiche réellement.
+
+## 5. Ce qui reste ouvert
 
 - L'ordre d'affichage des panneaux et des boutons suit l'alphabet par défaut.
   pyRevit expose une clé `layout` dans un `bundle.yaml` pour le forcer.
@@ -106,3 +172,7 @@ potentiel**, et pas seulement un outil interne. Bloqué par S1 — sans règles
 - Les panneaux de la famille B ne sont pas nommés : ils le seront quand le premier
   script métier arrivera, sur la même méthode — nommer au niveau du groupe qui
   tiendra 4 à 8 boutons, jamais au niveau d'un objet isolé.
+- **Le déclencheur d'O7 est atteint** *(2026-09-12)*. Un **quatrième mode d'action**
+  est apparu : **B19 écrit des fichiers, pas le modèle**. Trois couleurs ne
+  suffisent plus à décrire ce qu'un bouton fait. À rejuger à la révision mensuelle
+  — en attendant, **aucune quatrième couleur n'est inventée ici**.

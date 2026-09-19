@@ -25,7 +25,7 @@ chargerait pas. Niveau de langage plafonne a Python 3.4 : pas de f-strings.
 
 __title__ = "Audit\nsous-projets"
 __doc__ = "B13 - Inventaire des sous-projets au niveau document. Lecture seule."
-__author__ = "Keovia Solutions"
+__author__ = "Keovia Solutions inc."
 
 import io
 import os

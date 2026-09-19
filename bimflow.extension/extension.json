@@ -1,6 +1,6 @@
 {
   "name": "bimflow",
-  "description": "Outils d'automatisation Revit/BIM Keovia Solutions",
+  "description": "Outils d'automatisation Revit/BIM Keovia Solutions inc.",
   "author": "Keovia Solutions inc.",
   "website": "https://github.com/bzuber-kv/bimflow",
   "min_revit_version": "2026"

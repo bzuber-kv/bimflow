@@ -1,0 +1,16 @@
+title: |-
+  Nettoyage
+  paramètres
+
+author: Keovia Solutions inc.
+
+tooltip: >
+  ORANGE - ecrit dans la maquette. Une suppression de liaison efface
+  les valeurs du parametre, sans retour.
+
+  Migre les valeurs des parametres locaux vers leur equivalent du socle,
+  puis retire les parametres de projet morts. Trois protections cumulees :
+  un parametre qui porte des valeurs, un parametre utilise par une
+  nomenclature ou un filtre, un parametre du socle ne sont jamais proposes.
+
+  Le plan complet est affiche avant toute ecriture.
