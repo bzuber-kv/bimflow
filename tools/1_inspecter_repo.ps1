@@ -6,7 +6,10 @@
 # Keovia Solutions inc. - 2026-09-10 - cible pwsh 7, compatible 5.1
 
 param(
-    [string]$Repo = "D:\Dropbox\Dev\bimflow"
+    # Racine du depot : deduite de l'emplacement du script (tools\ est sous la
+    # racine). Aucun chemin de poste en dur - le script suit le depot, ou qu'il
+    # soit clone. A ne renseigner que pour viser un autre depot.
+    [string]$Repo = (Split-Path $PSScriptRoot -Parent)
 )
 
 function Titre($t) {
@@ -16,9 +19,12 @@ function Titre($t) {
     Write-Host ("=" * 70) -ForegroundColor Cyan
 }
 
-Titre "0. Le dossier existe-t-il ?"
-if (-not (Test-Path $Repo)) {
-    Write-Host "INTROUVABLE : $Repo" -ForegroundColor Red
+Titre "0. Est-ce bien le depot bimflow ?"
+# Meme critere que new-pyrevit-button.ps1 : la racine porte bimflow.extension.
+# Couvre les deux cas d'un coup - dossier absent, ou dossier qui n'est pas le depot.
+if (-not (Test-Path (Join-Path $Repo "bimflow.extension"))) {
+    Write-Host "Ce n'est pas le depot bimflow : $Repo" -ForegroundColor Red
+    Write-Host "  aucun dossier bimflow.extension a cette racine." -ForegroundColor Red
     Write-Host ""
     Write-Host "Cherchons ou il est reellement :" -ForegroundColor Yellow
     foreach ($racine in @("D:\Dropbox\Dev", "D:\Dev", "D:\")) {
