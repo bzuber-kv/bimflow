@@ -463,7 +463,7 @@ if not a_supprimer and not a_migrer:
     forms.alert(u"Rien a faire : la maquette est deja propre.",
                 title=u"Nettoyage", exitscript=True)
 
-message = u""
+message = u"Maquette : %s\n\n" % doc.Title
 if a_migrer:
     message += u"%d migration(s)\n" % len(a_migrer)
 if a_supprimer:

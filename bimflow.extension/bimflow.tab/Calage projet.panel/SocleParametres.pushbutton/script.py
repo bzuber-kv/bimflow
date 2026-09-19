@@ -304,9 +304,10 @@ if not a_ecrire:
 
 resume = u"\n".join([u"  - " + p[0] for p in a_ecrire])
 if not forms.alert(
-    u"%d parametre(s) a lier dans %s :\n\n%s\n\n"
+    u"Maquette : %s\n\n"
+    u"%d parametre(s) a lier :\n\n%s\n\n"
     u"Le fichier de parametres partages de Revit pointera desormais sur :\n%s\n\n"
-    u"Ecrire maintenant ?" % (len(a_ecrire), doc.Title, resume, chemin),
+    u"Ecrire maintenant ?" % (doc.Title, len(a_ecrire), resume, chemin),
     title=u"Socle de parametres - confirmation",
     yes=True, no=True,
 ):

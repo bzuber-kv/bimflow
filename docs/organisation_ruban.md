@@ -135,9 +135,22 @@ dit **ce que le bouton fait au modèle**, et elle le dit **avant le clic**.
 Orange et violet sont désignés par leur nom tant qu'une valeur n'a pas été relevée
 de la même façon.*
 
-**Complément indissociable.** Tout script d'écriture **démarre en simulation** et
-demande une **confirmation nommant la maquette**. C'est le sens de « une fois
-désarmé » : un bouton d'écriture ne doit jamais pouvoir agir d'un simple clic.
+**Complément indissociable — deux formes admises.** Un bouton d'écriture ne doit
+**jamais pouvoir agir d'un simple clic**. C'est l'exigence ; elle se tient de deux
+façons, et **les deux satisfont O7** :
+
+**(a) Désarmement par constante.** Le script porte `SIMULATION = True` en tête de
+fichier ; passer en mode réel demande d'éditer le script, geste délibéré qui ne
+s'accomplit pas par inadvertance. *Forme de B17.*
+
+**(b) Plan affiché avant écriture, puis confirmation nommant la maquette.** Le
+script calcule ce qu'il ferait, l'**affiche en entier**, puis demande une
+confirmation dont le texte **nomme la maquette** — `Maquette : <titre>`. Rien
+n'est écrit avant ce oui. *Forme des trois boutons d'écriture du socle de
+paramètres.*
+
+Ce que la couleur orange annonce, c'est donc ce que le bouton **peut** faire,
+jamais ce qu'il fait au premier clic.
 
 **L'icône fait partie du livrable, pas de la finition.** Un bundle sans `icon.png`
 s'affiche **en texte nu** et **sort du code couleur** — il perd exactement

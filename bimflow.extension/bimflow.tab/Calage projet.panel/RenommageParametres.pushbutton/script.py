@@ -141,10 +141,11 @@ if not plan:
 
 resume = u"\n".join([u"  " + a + u"  →  " + n for a, n, _p in plan])
 if not forms.alert(
+    u"Maquette : %s\n\n"
     u"%d renommage(s) :\n\n%s\n\n"
     u"Aucune valeur n'est perdue. Le classement de l'arborescence suit "
     u"automatiquement : c'est le meme parametre.\n\nEcrire maintenant ?"
-    % (len(plan), resume),
+    % (doc.Title, len(plan), resume),
     title=u"Renommage — confirmation", yes=True, no=True,
 ):
     out.print_md(u"**Annule. Rien n'a ete ecrit.**")
