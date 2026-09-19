@@ -1,0 +1,17 @@
+title: |-
+  Socle
+  paramètres
+
+author: Keovia Solutions inc.
+
+tooltip: >
+  ORANGE - ecrit dans la maquette.
+
+  Lie les parametres partages du socle Keovia (REF_ et CLS_) aux categories
+  de la maquette ouverte, Niveaux et Masses compris. Les champs deviennent
+  disponibles ; AUCUNE valeur n'est ecrite.
+
+  Le plan de liaison est affiche avant toute ecriture. Une liaison existante
+  est etendue, jamais reduite.
+
+highlight: new

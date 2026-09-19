@@ -1,0 +1,26 @@
+# This is a Revit shared parameter file.
+# Do not edit manually using Excel. Use Revit's Manage Shared Parameters tool.
+# Socle Keovia - source des GUID. Ce fichier se versionne, il ne se regenere jamais.
+#
+# CRITERE D'ENTREE, un seul : quelque chose HORS DU DOCUMENT doit-il
+# reconnaitre ce champ ? Export IFC, appariement Ivion ou GMAO, etiquette,
+# nomenclature entre modeles, echange avec un tiers.
+#   oui -> parametre PARTAGE, il entre ici et recoit un GUID a vie
+#   non -> parametre DE PROJET, porte par le gabarit, absent de ce fichier
+#
+# Les DOC_ ne sortent jamais de Revit : ce sont des parametres de projet.
+# GUID retires le 2026-09-19, a ne JAMAIS reattribuer a autre chose :
+#   bc3f686d-c5b2-4aa5-945a-dc371dc49f44  DOC_Classement_vue
+#   65dfba27-db46-470e-bebf-a38fbe9771b8  DOC_Classement_feuille
+#   0f6f1a5a-8f0b-4a3e-9c2f-7d5a1b6e40c1  DOC_Sous_discipline
+*META	VERSION	MINVERSION
+META	2	1
+*GROUP	ID	NAME
+GROUP	1	REFERENCEMENT
+GROUP	2	CLASSIFICATION
+*PARAM	GUID	NAME	DATATYPE	DATACATEGORY	GROUP	VISIBLE	DESCRIPTION	USERMODIFIABLE	HIDEWHENNOVALUE
+PARAM	9b48114b-33fe-4eee-97ef-2369b17ea6ce	REF_Batiment	TEXT		1	1	Batiment auquel l'objet appartient. Valeur = code du batiment (liste fermee par projet). Renseigne a la main sur les volumes et les niveaux, calcule ailleurs.	1	0
+PARAM	d7971f4d-dab0-4a07-bf53-df011895c4e4	REF_Etage	TEXT		1	1	Etage macro auquel l'objet appartient (BASEMENT, FLOOR_1...). Distinct du niveau Revit, qui est plus fin. Sur un niveau Revit, ce champ porte la matrice de passage niveau -> etage.	1	0
+PARAM	7414d6b1-6083-4145-9c1c-784e03243895	REF_Id	TEXT		1	1	Identifiant unique du volume de reference, forme <projet>-<type>-<nn>. Jamais reattribue. Sert de cle de rapprochement avec Ivion.	1	0
+PARAM	e3e496bc-5c59-4d02-b914-428692662dc7	CLS_Usage	TEXT		2	1	Usage du volume (liste fermee : RESIDENTIEL, CIRCULATION, TECHNIQUE, EXTERIEUR). Vocabulaire, ne designe aucune entite.	1	0
+PARAM	ba2e6c9e-506e-4b97-95aa-a5e3c10cbc40	CLS_Nature_volume	TEXT		2	1	Nature du volume (liste fermee : ETAGE, TOITURE, ENTRE_TOIT, EXTERIEUR). Porte la distinction que la geometrie projetee ne permet pas de faire.	1	0

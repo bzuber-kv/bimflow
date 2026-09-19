@@ -1,0 +1,16 @@
+title: |-
+  Renommage
+  paramètres
+
+author: Keovia Solutions inc.
+
+tooltip: >
+  ORANGE - ecrit dans la maquette, mais c'est la seule ecriture REVERSIBLE
+  de la serie : renommer ne perd aucune valeur.
+
+  Renomme sur place les parametres de projet NON PARTAGES, selon la table
+  ecrite en tete du script. Un parametre partage est ecarte et le dit :
+  son nom vient de sa definition, identifiee par un GUID.
+
+  Le plan est affiche avant toute ecriture, et le resultat est relu dans
+  la maquette.

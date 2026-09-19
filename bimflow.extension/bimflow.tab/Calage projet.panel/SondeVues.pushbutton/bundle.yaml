@@ -1,0 +1,16 @@
+title: |-
+  Sonde
+  vues
+
+author: Keovia Solutions inc.
+
+tooltip: >
+  BLEU - lecture seule, aucune transaction.
+
+  Dresse le tableau de toutes les vues : classe, gabarit, dependance,
+  gabarit applique, feuille d'accueil, et l'etat du parametre du socle
+  (inscriptible ou en lecture seule). Croise ces colonnes pour que la
+  difference entre les vues qui acceptent l'ecriture et celles qui la
+  refusent saute aux yeux.
+
+  Il ne conclut pas : il met les deux populations cote a cote.
