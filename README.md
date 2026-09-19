@@ -130,8 +130,14 @@ gabarit, absent de ce fichier.
 
 **Source et copie.** `shared_parameters/keovia_socle_parametres.txt` est **LA
 source** : elle se modifie ici, dans le dépôt, et par PR. La copie que Revit lit
-sera déposée dans le **dossier ACC du projet** — *chemin à fixer* — et **ne
-s'édite jamais** : on la redépose entière depuis la source.
+est déposée dans le projet ACC **« TheStudy » ▸ Fichiers de projet ▸
+`Donnees_partagees` ▸ `keovia_socle_parametres.txt`**, atteinte par **Autodesk
+Desktop Connector** — et **ne s'édite jamais** : on la redépose entière depuis la
+source.
+
+> ⚠ **Desktop Connector doit tourner et être synchronisé.** Sinon Revit lit une
+> copie en cache **potentiellement périmée, sans rien signaler** — ni message, ni
+> avertissement : les GUID lus seront simplement ceux d'une version antérieure.
 
 Ne pas éditer à la main dans un tableur : passer par Revit ▸ *Gérer les
 paramètres partagés*. Détail et liaisons : [docs/parametres.md](docs/parametres.md).
