@@ -22,7 +22,7 @@ selon le parametre, bande grise, correctif linkify.
 """
 
 __title__ = "Audit\nniveaux"
-__author__ = "Keovia Solutions"
+__author__ = "Keovia Solutions inc."
 
 # --------------------------------------------------------------------------
 # PARAMETRES DE L'AUDIT - a ajuster ici, pas dans le corps du script

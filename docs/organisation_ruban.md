@@ -128,16 +128,30 @@ dit **ce que le bouton fait au modèle**, et elle le dit **avant le clic**.
 | Couleur | Sens |
 |---|---|
 | **Bleu** — `#195DB1` | **lecture seule**, aucune transaction |
-| **Orange** | **écrit dans le modèle** (une fois désarmé) |
+| **Orange** — `#C55901` | **écrit dans le modèle** (une fois désarmé) |
 | **Violet** | ouvre une transaction **mais l'annule toujours** |
 
-*Seul le bleu a sa valeur relevée comme référence (au dépôt, le 2026-09-12).
-Orange et violet sont désignés par leur nom tant qu'une valeur n'a pas été relevée
-de la même façon.*
+*Valeurs relevées au dépôt : le **bleu le 2026-09-12**, l'**orange le 2026-09-19**
+— une seule valeur pour l'orange, celle de B17, à laquelle les trois boutons
+d'écriture du socle de paramètres ont été ramenés le même jour. Le violet est
+désigné par son nom tant qu'une valeur n'a pas été relevée de la même façon.*
 
-**Complément indissociable.** Tout script d'écriture **démarre en simulation** et
-demande une **confirmation nommant la maquette**. C'est le sens de « une fois
-désarmé » : un bouton d'écriture ne doit jamais pouvoir agir d'un simple clic.
+**Complément indissociable — deux formes admises.** Un bouton d'écriture ne doit
+**jamais pouvoir agir d'un simple clic**. C'est l'exigence ; elle se tient de deux
+façons, et **les deux satisfont O7** :
+
+**(a) Désarmement par constante.** Le script porte `SIMULATION = True` en tête de
+fichier ; passer en mode réel demande d'éditer le script, geste délibéré qui ne
+s'accomplit pas par inadvertance. *Forme de B17.*
+
+**(b) Plan affiché avant écriture, puis confirmation nommant la maquette.** Le
+script calcule ce qu'il ferait, l'**affiche en entier**, puis demande une
+confirmation dont le texte **nomme la maquette** — `Maquette : <titre>`. Rien
+n'est écrit avant ce oui. *Forme des trois boutons d'écriture du socle de
+paramètres.*
+
+Ce que la couleur orange annonce, c'est donc ce que le bouton **peut** faire,
+jamais ce qu'il fait au premier clic.
 
 **L'icône fait partie du livrable, pas de la finition.** Un bundle sans `icon.png`
 s'affiche **en texte nu** et **sort du code couleur** — il perd exactement

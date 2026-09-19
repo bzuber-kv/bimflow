@@ -136,6 +136,8 @@ portait, et cela ne se fait pas en passant.
 
 ## 5. Un paramètre de projet non partagé se renomme sur place · *mesuré*
 
+> **Maquette de mesure : `thestudy_CO_BAT` (copie détachée), 2026-09-19.**
+
 **Le fait.** Un paramètre de projet **non partagé** se renomme sur place, ses
 **valeurs intactes**. C'est le même élément du document : il change d'étiquette,
 rien d'autre. Le classement de l'arborescence suit automatiquement.
