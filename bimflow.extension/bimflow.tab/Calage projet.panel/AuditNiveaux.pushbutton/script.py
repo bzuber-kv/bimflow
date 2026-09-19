@@ -16,7 +16,7 @@ Ce que l'outil rapporte :
 
 Sortie : un CSV (une ligne par reference) + une synthese a l'ecran.
 
-bimflow - B18a mode lecture - Keovia Solutions
+bimflow - B18a mode lecture - Keovia Solutions inc.
 v3 - 2026-09-12 : calibration du repere mesuree, comparaison Zmin/Zmax
 selon le parametre, bande grise, correctif linkify.
 """
