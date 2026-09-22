@@ -1,0 +1,5 @@
+# Dependances de tools/sitemodel/gen_sitemodel.py UNIQUEMENT.
+# Ce n'est PAS une dependance de l'extension pyRevit : shapely n'existe pas
+# sous IronPython, et rien de ce fichier ne s'installe dans pyRevit.
+# CPython 3 hors Revit.
+shapely>=2.0

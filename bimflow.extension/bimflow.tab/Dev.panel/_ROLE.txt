@@ -17,6 +17,11 @@ A ne pas confondre avec l'ancien panneau « Apprentissage » (O1 bis, retire
 le 2026-09-19) : celui-la portait des essais jetables, celui-ci porte des
 outils destines a la production, avant leur premiere execution.
 
-Y est : audit volumes de zone (2026-09-22)
+Y est : audit volumes de zone (2026-09-22, lecture seule)
+        MAJ params volumes (2026-09-22, ECRITURE - copie detachee seulement)
+
+Un outil d'ecriture peut se trouver ici : le statut du panneau porte sur la
+maturite, pas sur le mode d'action. Celui qui ecrit garde ses garde-fous -
+simulation d'abord, confirmation nommant la maquette, un seul commit.
 
 Carte complete : docs\organisation_ruban.md

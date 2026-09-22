@@ -1,0 +1,12 @@
+title: |-
+  MAJ params
+  volumes
+tooltip: >-
+  NON ÉPROUVÉ — jamais exécuté dans Revit au 2026-09-22. ÉCRIT dans le modèle.
+  Déduit REF_Zone, REF_Etage, REF_Batiment, REF_Id et CLS_Nature_volume du nom
+  de famille des volumes in situ (VOL__zone__étage__attribut). Passage 1 en
+  lecture seule, confirmation nommant la maquette, un seul commit, annulation
+  complète si une écriture échoue. Ne touche ni à la géométrie, ni au nom de
+  famille, ni à CLS_Usage. Copie détachée uniquement.
+author: Keovia Solutions inc.
+highlight: new
