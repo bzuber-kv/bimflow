@@ -2,7 +2,8 @@ title: |-
   Audit
   volumes
 tooltip: >-
-  NON ÉPROUVÉ — jamais exécuté dans Revit au 2026-09-22. Audit des volumes de
+  Exécuté une fois, le 2026-09-22 (27 volumes, 9 zones) — reste au panneau Dev.
+  Audit des volumes de
   zone : identité, paramètres REF_/CLS_, boîte englobante, solides et faces
   classées (horizontale haute/basse, verticale, inclinée), plus les planchers
   de volume existants. Sortie JSON pour analyse hors Revit. Lecture seule —

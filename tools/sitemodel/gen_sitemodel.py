@@ -24,8 +24,9 @@ Autres regles (references = SITE_MODEL.md v8) :
   - polygon_inherited = true quand le contour egale celui du batiment
   - separation non horizontale : coupe au NIVEAU LE PLUS BAS (arbitrage Bruno
     2026-09-22), tranche marquee pour retraitement
-  - unites : Revit mm -> Ivion m ; aucune translation (le SCS reste le
-    chantier georeferencement, cf. R09 / ivion_api)
+  - unites : Revit mm -> Ivion m. Sans --scs, aucune transformation (repere
+    interne Revit, sandbox). Avec --scs, rotation THETA puis translation
+    DX/DY/DZ vers le SCS Ivion - verifie sur site le 2026-09-22.
   - validation C1/C2/C3/C6/C10 AVANT envoi (5.6 : l'import teste la
     conformite, il ne diagnostique pas)
 

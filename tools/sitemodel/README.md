@@ -1,9 +1,30 @@
 # sitemodel — du volume Revit au `site_model` Ivion
 
-> Statut au 2026-09-22 : **non éprouvé de bout en bout.** `gen_sitemodel.py`
-> a été écrit par Bruno et entre au dépôt tel quel (SHA-256 identique à la
-> source). Le bouton `Audit volumes` qui l'alimente n'a jamais tourné dans
-> Revit.
+> Statut au 2026-09-22 : `Audit volumes` **a tourné dans Revit** ce jour-là,
+> et c'est sa sortie qui a fourni les chiffres cités plus bas — 27 volumes,
+> 9 zones, deux séparations non horizontales. `gen_sitemodel.py` a été écrit
+> par Bruno et entre au dépôt tel quel.
+
+## Une seule commande
+
+```powershell
+.\tools\sitemodel\run.ps1 -Audit "<le JSON qu'AuditVolumes a écrit>"
+```
+
+Le lanceur fait tout : il fabrique l'environnement Python au premier
+lancement, enchaîne les deux étapes, affiche leurs contrôles, range le
+résultat dans `travail\`, et **termine par le chemin du fichier à importer
+dans Ivion**. Il rend un **code de sortie non nul** si un contrôle échoue —
+un `site_model` dont un contrôle a échoué ne part pas chez Ivion.
+
+| Paramètre | Effet |
+|---|---|
+| `-Audit <chemin>` | le JSON d'`AuditVolumes`. Obligatoire. |
+| `-Batiment <nom>` | nom porté par le `site_model`. `TheStudy` par défaut. |
+| `-Sandbox` | sortie **non** géoréférencée, repère interne Revit. Sans ce commutateur, la sortie est transformée vers le SCS Ivion. |
+
+Rien n'est à déplacer à la main : `travail\` et `.venv\` sont dans le dépôt
+mais ignorés par git, et aucun fichier ne part vers OneDrive.
 
 ## Une chaîne en deux temps, et ce n'est pas un choix de confort
 
@@ -116,10 +137,23 @@ de niveau et diffère de la géométrie de **29 065 mm** sur The Study
 2. ~~L'en-tête attribue à l'audit un `Level.Elevation` qu'il n'emploie
    pas~~ → en-tête corrigé, et l'écart de 29 065 mm y renvoie à R16 §1.1.
 
-**Ce qui reste non éprouvé** : la chaîne n'a jamais tourné sur des données
-réelles, puisque `Audit volumes` n'a jamais été exécuté dans Revit. Elle a
-été éprouvée de bout en bout sur un **audit synthétique** au format exact
-de l'outil (deux zones accolées, une séparation inclinée, un volume à face
-manquante, un nom hors motif) : la conversion écarte les deux volumes
-fautifs en les nommant, et le générateur sort deux `BUILDING` avec tous ses
-contrôles au vert.
+## Ce qui est éprouvé, et ce qui ne l'est pas
+
+**`AuditVolumes` a tourné dans Revit le 2026-09-22** : 27 volumes, 9 zones,
+partition mesurée à **0,00 m² d'écart pour 326,2 m²**, deux séparations non
+horizontales. Ce sont les chiffres de référence des contrôles ci-dessus.
+
+**Le JSON de cette exécution n'est pas encore au dépôt.** Il ira dans
+`tools/sitemodel/exemples/`, qui existe pour l'accueillir : c'est lui qui
+permettra de rejouer la chaîne sans Revit, et de voir en régression le jour
+où un contrôle cesse de donner ces chiffres.
+
+**Les deux maillons hors Revit n'ont donc pas encore tourné sur cette sortie
+réelle.** Ils ont été éprouvés de bout en bout sur un **audit synthétique**
+au format exact de l'outil — deux zones accolées, une séparation inclinée,
+un volume à face verticale manquante, un nom hors motif : la conversion
+écarte les deux volumes fautifs en les nommant, le générateur sort deux
+`BUILDING` tous contrôles au vert, et le lanceur rend 1 dans le premier cas,
+0 dans le second.
+
+**`MajParamsVolumes` n'a jamais tourné** — c'est le bouton qui écrit.

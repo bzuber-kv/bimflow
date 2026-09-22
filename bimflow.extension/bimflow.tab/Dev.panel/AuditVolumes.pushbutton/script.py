@@ -9,17 +9,23 @@ hors Revit : controle du nommage, alimentation du decoupage site_model
 Ivion, surfaces par niveau.
 
 #############################################################################
-# STATUT : NON EPROUVE - JAMAIS EXECUTE DANS REVIT au 2026-09-22.           #
-# Verifie hors Revit seulement : syntaxe, et decoupage des noms sur 8 cas.  #
-# Ne pas fusionner vers main tant qu'il n'a pas tourne et produit un JSON   #
-# exploitable. Le panneau Dev est le panneau des outils de ce statut.       #
+# STATUT : EXECUTE UNE FOIS dans Revit, le 2026-09-22 - 27 volumes,         #
+# 9 zones, deux separations non horizontales. La sortie a ete exploitee par #
+# la chaine site_model (tools/sitemodel), qui en a tire une partition en    #
+# plan fermee a 0,00 m2 pres pour 326,2 m2.                                 #
+# Une execution n'est pas une garantie : l'outil reste au panneau Dev tant  #
+# qu'il n'a pas servi plusieurs fois, et le JSON de cette execution n'est   #
+# pas encore verse a tools/sitemodel/exemples/.                             #
 #############################################################################
 
 LECTURE SEULE - aucune transaction n'est ouverte, rien n'est ecrit dans la
 maquette. La seule ecriture est le fichier JSON, hors du modele.
 
-HYPOTHESES A VERIFIER A LA PREMIERE EXECUTION. Aucune n'arrete le script :
-chacune rend None ou une erreur consignee dans le JSON.
+HYPOTHESES POSEES A L'ECRITURE. L'execution du 2026-09-22 a prouve que le
+script tourne et que les contours sont reconstructibles ; elle n'a pas
+statue une a une sur les quatre hypotheses ci-dessous, qui se lisent dans le
+JSON produit (valeurs nulles, incoherence_hote, methode de boucle). Aucune
+n'arrete le script : chacune rend None ou une erreur consignee.
   1. MASS_GROSS_VOLUME / MASS_GROSS_SURFACE_AREA / MASS_GROSS_AREA - noms de
      BuiltInParameter supposes, lus par getattr. Absents : les trois valeurs
      valent null. Recoupement disponible : volume_solides_m3, somme des

@@ -17,8 +17,11 @@ A ne pas confondre avec l'ancien panneau « Apprentissage » (O1 bis, retire
 le 2026-09-19) : celui-la portait des essais jetables, celui-ci porte des
 outils destines a la production, avant leur premiere execution.
 
-Y est : audit volumes de zone (2026-09-22, lecture seule)
+Y est : audit volumes de zone (lecture seule) - A TOURNE UNE FOIS le
+        2026-09-22 : 27 volumes, 9 zones. Une execution ne fait pas une
+        garantie ; il sort d'ici quand il aura servi plusieurs fois.
         MAJ params volumes (2026-09-22, ECRITURE - copie detachee seulement)
+        - jamais execute.
 
 Un outil d'ecriture peut se trouver ici : le statut du panneau porte sur la
 maturite, pas sur le mode d'action. Celui qui ecrit garde ses garde-fous -
