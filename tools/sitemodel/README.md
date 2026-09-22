@@ -5,6 +5,40 @@
 > 11 zones, trois bâtiments. `gen_sitemodel.py` a été écrit par Bruno et
 > entre au dépôt tel quel.
 
+## L'ordre des gestes, côté Revit
+
+Le nom de famille est la **source de vérité** : il porte la zone, l'étage et
+la nature. Trois boutons le lisent ou l'écrivent, et l'ordre n'est pas
+indifférent — **sur copie détachée d'abord** (R17) :
+
+| # | Bouton | Ce qu'il fait |
+|---|---|---|
+| 1 | **Renommer volumes** | écrit la nature dans le 4e segment des volumes qui portent encore `0` |
+| 2 | **Audit volumes** | vérifie les noms, et produit le JSON de la chaîne |
+| 3 | **MAJ params volumes** | recopie zone, étage, bâtiment, nature dans les paramètres |
+
+On renomme **avant** d'auditer : un audit passé sur l'ancien motif décrirait
+un état déjà périmé. Et on ne renomme jamais dans la même transaction qu'on
+lit — c'est pourquoi le renommage est un bouton séparé.
+
+## Le motif de nom
+
+```
+VOL__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>
+ex. VOL__JU_Bj-Fj-1j-5j__FLOOR_3__ETAGE
+```
+
+Le 4e segment porte **exactement** une valeur de la liste fermée du socle —
+`ETAGE`, `TOITURE`, `ENTRE_TOIT`, `EXTERIEUR`, `ENVELOPPE` — pour qu'aucune
+table de correspondance n'existe entre le nom et le paramètre. C'est cet
+arbitrage du 2026-09-22 qui a fait **abandonner le champ `CLS_Destination`** :
+la destination Ivion se déduit de la nature.
+
+**Ce qui part vers Ivion** : `ETAGE`, `TOITURE`, `ENTRE_TOIT`, `EXTERIEUR`.
+`ENVELOPPE` est exclue — un volume d'enveloppe LOD100 n'est ni un étage ni
+une toiture — et une tranche sans nature ne l'est pas davantage : une nature
+ne se devine pas. Le générateur dit combien il a écarté, et pourquoi.
+
 ## Une seule commande
 
 ```powershell

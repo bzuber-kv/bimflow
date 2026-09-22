@@ -131,6 +131,42 @@ def gj(ext, trous=()):
 donnees = json.loads(SRC.read_text(encoding="utf-8"))
 zones = donnees["zones"]
 
+# FILTRE D'EXPORT (arbitrage Bruno du 2026-09-22). Ne part vers Ivion que ce
+# qui est un espace de visite : ETAGE, TOITURE, ENTRE_TOIT, EXTERIEUR.
+# ENVELOPPE est exclue - un volume d'enveloppe LOD100 n'est ni un etage ni
+# une toiture. Une tranche SANS nature n'est pas exportee non plus : une
+# nature ne se devine pas.
+NATURES_EXPORTEES = ("ETAGE", "TOITURE", "ENTRE_TOIT", "EXTERIEUR")
+
+ecartes = {}
+zones_filtrees = {}
+for _zn, _tr in zones.items():
+    gardees = []
+    for _t in _tr:
+        _nature = _t.get("nature")
+        if _nature in NATURES_EXPORTEES:
+            gardees.append(_t)
+        else:
+            _motif = _nature if _nature else "sans nature"
+            ecartes[_motif] = ecartes.get(_motif, 0) + 1
+    if gardees:
+        zones_filtrees[_zn] = gardees
+    elif _tr:
+        ecartes["zone entiere ecartee : " + _zn] = 0
+
+zones = zones_filtrees
+if not zones:
+    sys.exit("REFUS : aucune tranche exportable. Les natures lues sont %s, "
+             "et seules %s partent vers Ivion."
+             % (", ".join(sorted(ecartes.keys())) or "(aucune)",
+                ", ".join(NATURES_EXPORTEES)))
+
+INFO_FILTRE = ("filtre d'export : %d tranche(s) ecartee(s)%s"
+               % (sum(ecartes.values()),
+                  (" - " + ", ".join("%s: %d" % (k, v)
+                                     for k, v in sorted(ecartes.items()) if v))
+                  if any(ecartes.values()) else ""))
+
 # La transformation vers le SCS n'est PAS en dur : elle se lit dans l'audit,
 # ou Revit l'a mesuree (entete.emplacement_partage, reporte ici par
 # audit_to_zones).
@@ -253,7 +289,9 @@ def attrs_floor(zn, t):
     a = {"keovia_ref_batiment": BATIMENT,
          "keovia_ref_zone": zn,
          "keovia_ref_etage": t["etage"],
-         "keovia_cls_nature_volume": "ZONE_IVION",
+         # la nature du volume, telle que son NOM la porte - plus aucune
+         # valeur inventee ici
+         "keovia_cls_nature_volume": t.get("nature", ""),
          "keovia_src": "A_VOL / audit 2026-09-22"}
     if "flag" in t:
         a["keovia_geom_flag"] = t["flag"]
@@ -329,7 +367,11 @@ for noms, emprise, sig in groupes:
             "keovia_ref_batiment": BATIMENT,
             "keovia_ref_zones": ";".join(noms),
             "keovia_site": SITE,
-            "keovia_cls_nature_volume": "ZONE_IVION",
+            # un BUILDING est une PILE, pas un volume : il n'a pas de nature
+            # propre. Les natures sont portees par ses FLOOR.
+            "keovia_cls_nature_volume": ";".join(
+                sorted(set(f["attributes"]["keovia_cls_nature_volume"]
+                           for f in ch))),
             "keovia_repere": ("SCS Ivion (DX %.6f DY %.6f DZ %.3f, rotation "
                               "%.4f deg)" % (DX, DY, DZ, THETA_DEG)) if SCS else
                              "ORIGINE INTERNE REVIT, metres, AUCUNE transformation "
@@ -342,6 +384,7 @@ for noms, emprise, sig in groupes:
 DST = HERE / ("site_model_%s.json" % BATIMENT.lower())
 DST.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
 
+print(INFO_FILTRE)
 print(INFO_UNION)
 print("Repere : %s" % INFO_REPERE)
 print("         THETA %.7f rad (%.4f deg) - DX/DY/DZ %.3f / %.3f / %.3f m%s"

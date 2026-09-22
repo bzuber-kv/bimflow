@@ -17,11 +17,20 @@ A ne pas confondre avec l'ancien panneau « Apprentissage » (O1 bis, retire
 le 2026-09-19) : celui-la portait des essais jetables, celui-ci porte des
 outils destines a la production, avant leur premiere execution.
 
-Y est : audit volumes de zone (lecture seule) - A TOURNE le 2026-09-22 :
-        30 volumes, 11 zones, trois batiments. Une execution ne fait pas une
-        garantie ; il sort d'ici quand il aura servi plusieurs fois.
-        MAJ params volumes (2026-09-22, ECRITURE - copie detachee seulement)
-        - jamais execute.
+Y est, et l'ordre d'emploi est celui-la :
+
+  1. Renommer volumes (ECRITURE) - porte la nature dans le 4e segment du
+     nom des volumes qui valent encore "0". Jamais execute.
+  2. Audit volumes (lecture seule) - A TOURNE le 2026-09-22 : 30 volumes,
+     11 zones, trois batiments. Une execution ne fait pas une garantie ;
+     il sort d'ici quand il aura servi plusieurs fois.
+  3. MAJ params volumes (ECRITURE) - recopie le nom dans les parametres.
+     Jamais execute.
+
+On renomme AVANT d'auditer : un audit passe sur l'ancien motif decrirait un
+etat deja perime. Et le renommage est un bouton separe parce que le nom est
+la source de verite : on n'ecrit pas la source dans la transaction qui la
+lit. Les trois ne tournent que sur copie detachee (R17).
 
 Un outil d'ecriture peut se trouver ici : le statut du panneau porte sur la
 maturite, pas sur le mode d'action. Celui qui ecrit garde ses garde-fous -

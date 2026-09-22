@@ -14,15 +14,16 @@ famille, ni a CLS_Usage.
 # nomenclature de Volumes, dans Revit.                                      #
 #############################################################################
 
-MOTIF DE NOM, tel qu'il est reellement employe dans A_VOL (il prevaut sur le
-hub, qui porte encore un motif perime) :
+MOTIF DE NOM (arbitrage Bruno du 2026-09-22) :
 
-    VOL__<REF_Zone>__<REF_Etage>__<attribut>
-    ex. VOL__JU_Bj-Fj-1j-5j__FLOOR_3__0
+    VOL__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>
+    ex. VOL__JU_Bj-Fj-1j-5j__FLOOR_3__ETAGE
 
 Separateur : DOUBLE underscore. Un underscore simple appartient au segment
-(JU_Bj-Fj-1j-5j, FLOOR_3) et ne se decoupe jamais. L'attribut vaut "0" par
-defaut et n'est jamais vide.
+(JU_Bj-Fj-1j-5j, FLOOR_3, ENTRE_TOIT) et ne se decoupe jamais. Le 4e segment
+porte EXACTEMENT une valeur de la liste fermee - aucune table de
+correspondance n'existe, et c'est le but. Les volumes dont il vaut encore
+"0" sont hors motif : le bouton Renommer volumes les traite d'abord.
 
 CE QUI EST ECRIT, volume par volume :
     REF_Zone           segment 1, rafraichi a chaque passage
@@ -33,9 +34,15 @@ CE QUI EST ECRIT, volume par volume :
                        JAMAIS reecrit, JAMAIS regenere : c'est la cle de
                        jointure vers Ivion, elle doit survivre aux
                        renommages.
-    CLS_Nature_volume  "ZONE_IVION" si vide ; deja renseigne = laisse tel
-                       quel et signale
+    CLS_Nature_volume  segment 4, recopie TEL QUEL, si le champ est vide ;
+                       deja renseigne = laisse tel quel et signale
     CLS_Usage          jamais ecrit (saisie metier)
+
+CONTROLE SIGNALE, JAMAIS BLOQUANT : la redondance entre le 3e et le 4e
+segment sert de garde-fou. Un REF_Etage ROOF dont la nature n'est pas
+TOITURE, ou une nature TOITURE ailleurs qu'a ROOF, sort au rapport - le
+volume est ecrit quand meme, parce que le nom fait foi et qu'un outil
+n'arbitre pas a la place du modeleur.
 
 GARDE-FOUS :
   - passage 1 en LECTURE SEULE : le tableau des ecritures prevues (volume,
@@ -61,10 +68,14 @@ __author__ = "Keovia Solutions inc."
 
 # Prefixe de REF_Zone (avant le premier underscore simple) -> REF_Batiment.
 # Un prefixe absent de cette table n'est JAMAIS devine.
+# CINQ prefixes : la maquette en porte cinq sur ses 23 niveaux. SE avait ete
+# oublie le 2026-09-22, et SE_office s'en trouvait ignore a tort.
 BATIMENT_DU_PREFIXE = {
     "JU": "Junior",
     "MI": "Middle",
     "SC": "Senior_Central",
+    "SE": "Senior_East",
+    "EXT": "SITE",
 }
 
 NOM_ZONE = "REF_Zone"
@@ -72,8 +83,6 @@ NOM_ETAGE = "REF_Etage"
 NOM_BATIMENT = "REF_Batiment"
 NOM_ID = "REF_Id"
 NOM_NATURE = "CLS_Nature_volume"
-
-VALEUR_NATURE = "ZONE_IVION"
 
 # Une maquette collaborative doit etre traitee sur une COPIE DETACHEE (R17).
 AUTORISER_NON_DETACHE = False
@@ -86,7 +95,11 @@ from pyrevit import revit, script, forms
 # et avec tools/sitemodel/audit_to_zones.py (dossier lib\ de l'extension,
 # ajoute au chemin par pyRevit).
 try:
-    from bimflow_noms import lire as lire_nom, batiment_du as batiment_de_zone
+    from bimflow_noms import (
+        lire as lire_nom,
+        batiment_du as batiment_de_zone,
+        incoherence_etage_nature,
+    )
 except ImportError:
     from pyrevit import forms as _formulaires
     _formulaires.alert(
@@ -189,6 +202,7 @@ prevues = []        # (eid, nom_famille, nom_param, avant, apres)
 ignores = []        # (eid, nom_famille, motif)
 inchanges = []      # (eid, nom_famille, nom_param, motif)
 nature_deja = []    # (eid, nom_famille, valeur en place)
+incoherences = []   # (eid, nom_famille, motif) - signale, jamais bloquant
 sans_parametre = {}  # nom de parametre -> [eid]
 
 
@@ -233,12 +247,17 @@ for eid in ids:
     if lu is None:
         ignores.append((eid, nom_famille, u"nom hors motif : {0}".format(refus)))
         continue
-    zone, etage, attribut = lu
+    zone, etage, nature = lu
 
     batiment, refus_bat = batiment_de_zone(zone, BATIMENT_DU_PREFIXE)
     if batiment is None:
         ignores.append((eid, nom_famille, refus_bat))
         continue
+
+    # --- garde-fou : le 3e et le 4e segment doivent s'accorder -------------
+    incoherence = incoherence_etage_nature(etage, nature)
+    if incoherence is not None:
+        incoherences.append((eid, nom_famille, incoherence))
 
     # --- les trois champs rafraichis a chaque passage ---------------------
     for nom_param, valeur in ((NOM_ZONE, zone),
@@ -274,8 +293,9 @@ for eid in ids:
                           u"deja renseigne (\"{0}\") - laisse tel quel".format(
                               texte(avant))))
     else:
-        prevues.append((eid, nom_famille, NOM_NATURE, texte(avant),
-                        VALEUR_NATURE))
+        # recopie TELLE QUELLE du 4e segment : aucune correspondance, aucune
+        # traduction - c'est ce qui rend le nom lisible sans decodeur
+        prevues.append((eid, nom_famille, NOM_NATURE, texte(avant), nature))
 
 volumes_touches = sorted(set([id_de(e) for e, n, p, a, b in prevues]))
 
@@ -321,6 +341,20 @@ if not ignores:
     out.print_md(u"*Aucun.*")
 else:
     for eid, nom, motif in ignores:
+        try:
+            lien = out.linkify(eid)
+        except Exception:
+            lien = u"`{0}`".format(id_de(eid))
+        out.print_md(u"- {0} `{1}` : {2}".format(lien, texte(nom), motif))
+
+if incoherences:
+    out.print_md(
+        u"## Etage et nature ne s'accordent pas - signale, PAS bloquant")
+    out.print_md(
+        u"Ces volumes sont ecrits quand meme : le nom fait foi, et un outil "
+        u"n'arbitre pas a la place du modeleur. Mais l'un des deux segments "
+        u"est faux, et c'est dans Revit que cela se corrige.")
+    for eid, nom, motif in incoherences:
         try:
             lien = out.linkify(eid)
         except Exception:
@@ -452,6 +486,14 @@ out.print_md(
     u"**{0}** valeur(s) ecrite(s) sur **{1}** volume(s), en un seul commit.".format(
         ecrits, len(volumes_touches))
 )
+if incoherences:
+    out.print_md(
+        u"**{0} volume(s) dont l'etage et la nature ne s'accordent pas** - "
+        u"ecrits, et listes plus haut. A reprendre dans Revit : c'est le nom "
+        u"qu'il faut corriger, puis relancer ce bouton.".format(
+            len(incoherences))
+    )
+
 out.print_md(
     u"> **Ce que ce resultat ne prouve pas.** Le script rapporte ce que "
     u"l'API lui a rendu, pas ce que la maquette contient. La verification "

@@ -41,12 +41,15 @@ n'arrete le script : chacune rend None ou une erreur consignee.
      est retenue et la methode employee est publiee.
 
 Motif de nom attendu - quatre segments separes par un DOUBLE underscore :
-    VOL__<REF_Zone>__<REF_Etage>__<REF_attribut>
+    VOL__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>
     ex. VOL__JU_Bj-Fj_1j-5j__FLOOR_2__0
 Le decoupage se fait sur "__" et doit rendre exactement 4 segments. Un
 underscore simple a l'interieur d'un segment (JU_Bj-Fj_1j-5j, FLOOR_2) n'est
-jamais un separateur. REF_attribut vaut "0" ; toute autre valeur est
-probablement un suffixe de copie pose par Revit - signalee, jamais corrigee.
+jamais un separateur. Le 4e segment porte EXACTEMENT une valeur de la liste
+fermee de CLS_Nature_volume (arbitrage Bruno du 2026-09-22) : ETAGE,
+TOITURE, ENTRE_TOIT, EXTERIEUR, ENVELOPPE. Les volumes qui portent encore
+"0" relevent du bouton Renommer volumes. Tout est signale, rien n'est
+corrige - cet outil ne touche a rien.
 
 Ce que le JSON contient :
   - en-tete : maquette, unites, repere, points de base, niveaux ;
@@ -106,7 +109,8 @@ from pyrevit import revit, script, forms
 try:
     from bimflow_noms import (
         decouper as decouper_nom,
-        ATTRIBUT_DEFAUT as ATTRIBUT_ATTENDU,
+        NATURE_A_RENOMMER,
+        NATURES,
     )
 except ImportError:
     from pyrevit import forms as _formulaires
@@ -618,7 +622,8 @@ volumes = []
 erreurs = []
 
 non_conformes = []          # (eid, nom, defauts)
-attributs_hors_norme = []   # (eid, nom, attribut)
+a_renommer = []             # (eid, nom) - 4e segment encore "0"
+natures_inconnues = []      # (eid, nom, valeur hors liste fermee)
 multi_solides = []          # (eid, nom, n)
 sans_geometrie = []         # (eid, nom, motif)
 sans_haute = []             # (eid, nom)
@@ -684,18 +689,20 @@ def auditer_volume(eid):
         ("prefixe", segments[0] if segments else None),
         ("REF_Zone", segments[1] if segments else None),
         ("REF_Etage", segments[2] if segments else None),
-        ("REF_attribut", segments[3] if segments else None),
+        ("CLS_Nature_volume", segments[3] if segments else None),
     ])
     if defauts:
         v["defauts_nom"] = defauts
         non_conformes.append((eid, family_name, defauts))
     if segments is not None:
-        zone, etage, attribut = segments[1], segments[2], segments[3]
+        zone, etage, nature = segments[1], segments[2], segments[3]
         par_zone[zone] = par_zone.get(zone, 0) + 1
         par_etage[etage] = par_etage.get(etage, 0) + 1
         par_zone_etage.setdefault((zone, etage), []).append((eid, family_name))
-        if attribut != ATTRIBUT_ATTENDU:
-            attributs_hors_norme.append((eid, family_name, attribut))
+        if nature == NATURE_A_RENOMMER:
+            a_renommer.append((eid, family_name))
+        elif nature not in NATURES:
+            natures_inconnues.append((eid, family_name, nature))
 
     v["type_name"] = texte(type_name)
     v["workset"] = nom_sous_projet(el)
@@ -971,15 +978,20 @@ table_repartition(u"REF_Zone", par_zone)
 table_repartition(u"REF_Etage", par_etage)
 
 liste_md(
-    u"Noms non conformes au motif `VOL__<REF_Zone>__<REF_Etage>__<REF_attribut>`",
+    u"Noms non conformes au motif "
+    u"`VOL__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>`",
     [u"- {0} `{1}` : {2}".format(lien(e), n, u" ; ".join(d))
      for e, n, d in non_conformes],
 )
 liste_md(
-    u"Attributs differents de \"{0}\" - copie Revit probable, rien n'est "
-    u"corrige".format(ATTRIBUT_ATTENDU),
-    [u"- {0} `{1}` : attribut **`{2}`**".format(lien(e), n, a)
-     for e, n, a in attributs_hors_norme],
+    u"Volumes a renommer - 4e segment encore \"{0}\"".format(NATURE_A_RENOMMER),
+    [u"- {0} `{1}`".format(lien(e), n) for e, n in a_renommer],
+    vide=u"*Aucun : tous les noms portent deja leur nature.*",
+)
+liste_md(
+    u"Natures hors de la liste fermee ({0})".format(u", ".join(NATURES)),
+    [u"- {0} `{1}` : 4e segment **`{2}`**".format(lien(e), n, v)
+     for e, n, v in natures_inconnues],
 )
 liste_md(
     u"Meme couple (REF_Zone, REF_Etage) porte par plusieurs volumes",
@@ -1079,7 +1091,8 @@ racine["entete"] = OrderedDict([
         ("verticale_si_abs_nz_inferieur_a", NZ_VERTICALE),
         ("segment_xy_ecarte_si_plus_court_que_mm", TOL_SEGMENT_MM),
     ])),
-    ("motif_nom", u"VOL__<REF_Zone>__<REF_Etage>__<REF_attribut>"),
+    ("motif_nom", u"VOL__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>"),
+    ("natures_liste_fermee", list(NATURES)),
     ("point_de_base_projet", lire_point_de_base("GetProjectBasePoint")),
     ("point_topographique", lire_point_de_base("GetSurveyPoint")),
     ("emplacement_partage", emplacement),
@@ -1094,9 +1107,13 @@ racine["constats"] = OrderedDict([
     ("noms_non_conformes", [
         OrderedDict([("id", id_de(e)), ("family_name", texte(n)), ("defauts", d)])
         for e, n, d in non_conformes]),
-    ("attributs_differents_de_0", [
-        OrderedDict([("id", id_de(e)), ("family_name", texte(n)), ("attribut", a)])
-        for e, n, a in attributs_hors_norme]),
+    ("a_renommer_4e_segment_zero", [
+        OrderedDict([("id", id_de(e)), ("family_name", texte(n))])
+        for e, n in a_renommer]),
+    ("natures_hors_liste_fermee", [
+        OrderedDict([("id", id_de(e)), ("family_name", texte(n)),
+                     ("valeur", v)])
+        for e, n, v in natures_inconnues]),
     ("couples_zone_etage_en_double", [
         OrderedDict([("REF_Zone", c[0]), ("REF_Etage", c[1]),
                      ("ids", [id_de(e) for e, n in l])])

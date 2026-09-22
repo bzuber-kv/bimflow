@@ -55,7 +55,7 @@ import sys
 RACINE = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RACINE / "bimflow.extension" / "lib"))
 try:
-    from bimflow_noms import lire as lire_nom
+    from bimflow_noms import lire as lire_nom, NATURES_EXPORTEES
 except ImportError:
     sys.exit("REFUS : module partage bimflow_noms introuvable. Attendu dans "
              "%s" % (RACINE / "bimflow.extension" / "lib"))
@@ -214,7 +214,7 @@ for v in volumes:
     if lu is None:
         refus.append((ident, nom, "nom hors motif : %s" % motif))
         continue
-    zone, etage, _attribut = lu
+    zone, etage, nature = lu
 
     faces = v.get("faces") or []
     if not faces:
@@ -265,6 +265,7 @@ for v in volumes:
 
     zones.setdefault(zone, []).append({
         "etage": etage,
+        "nature": nature,
         "coords": [list(p) for p in anneau],
         "aire": round(aire_m2, 4),
         "zmin": zmin,
@@ -301,26 +302,49 @@ else:
     print("ecart contour / face horizontale .............. aucune face "
           "horizontale a comparer")
 
+# Les deux controles qui suivent ne portent que sur ce qui PART vers Ivion.
+# Une ENVELOPPE recouvre en plan les etages qu'elle enveloppe : la compter
+# ferait echouer la partition et, si elle partage la zone d'un etage, la
+# regle R1 - deux faux echecs sur une maquette pourtant juste. Elle reste
+# dans le fichier ecrit ; c'est gen_sitemodel qui l'ecarte de l'export.
+
+
+def exportables(tranches):
+    return [t for t in tranches if t.get("nature") in NATURES_EXPORTEES]
+
+
+mises_de_cote = [t for tr in zones.values() for t in tr
+                 if t.get("nature") not in NATURES_EXPORTEES]
+if mises_de_cote:
+    print("natures hors export mises de cote pour les controles ... %d "
+          "tranche(s) : %s"
+          % (len(mises_de_cote),
+             ", ".join(sorted(set(str(t.get("nature")) for t in mises_de_cote)))))
+
 # R1 : le contour est CONSTANT sur toutes les tranches d'une meme zone
 zones_variables = []
 for zone, tranches in zones.items():
-    reference = [tuple(p) for p in tranches[0]["coords"]]
-    for t in tranches[1:]:
+    retenues = exportables(tranches)
+    if not retenues:
+        continue
+    reference = [tuple(p) for p in retenues[0]["coords"]]
+    for t in retenues[1:]:
         if not contours_egaux(reference, [tuple(p) for p in t["coords"]]):
             zones_variables.append((zone, t["etage"]))
 print("R1  contour constant sur toutes les tranches ... %s"
-      % ("OK (%d zone(s))" % len(zones)
+      % ("OK (%d zone(s))" % len([z for z in zones.values() if exportables(z)])
          if not zones_variables else "ECHEC (%d tranche(s))" % len(zones_variables)))
 
 # partition en plan : somme des aires de zone == aire de l'union
-somme = sum(z[0]["aire"] for z in zones.values())
+contours_zone = [exportables(tr)[0] for tr in zones.values() if exportables(tr)]
+somme = sum(t["aire"] for t in contours_zone)
 union_aire = None
 try:
     from shapely.geometry import Polygon
     from shapely.ops import unary_union
     union = unary_union([Polygon([(x / 1000.0, y / 1000.0)
-                                  for x, y in z[0]["coords"]])
-                         for z in zones.values()])
+                                  for x, y in t["coords"]])
+                         for t in contours_zone])
     union_aire = union.area
 except ImportError:
     print("partition en plan ............................. NON VERIFIEE "
