@@ -43,17 +43,24 @@ REPERE (mesure, GEOREFERENCEMENT.md + TheStudy_PEP.md v1.9) :
   (296934.640 ; 5038973.460 ; 125.000). D'ou la translation connue
   DX/DY/DZ ci-dessous - identique au vecteur applique au site_model reel
   le 2026-08-25.
-  ROTATION : +31.54 deg dans le sens TRIGONOMETRIQUE, repere projet ->
-  repere SCS. Le SCS est aligne sur le nord grille MTM8 (la fiche du point
-  de base Ivion declare une rotation de 0 deg). Applique AVANT la
-  translation, puisque celle-ci est exprimee en axes MTM8.
+  ROTATION appliquee AVANT la translation, puisque celle-ci est exprimee en
+  axes MTM8. Le SCS est aligne sur le nord grille MTM8 (la fiche du point de
+  base Ivion declare une rotation de 0 deg).
   Par defaut le script n'applique RIEN (sortie sandbox) ; --scs produit la
   sortie georeferencee.
 
-Usage : python3 gen_sitemodel.py <audit.json> [nom_batiment] [--scs]
-        --scs applique DX/DY/DZ et THETA ; refuse tant que THETA est None.
+  LA TRANSFORMATION N'EST PLUS EN DUR. Elle se lit dans l'audit, ou Revit
+  l'a mesuree (entete.emplacement_partage, reporte par audit_to_zones) :
+  l'angle au nord vrai donne THETA, et l'origine interne en coordonnees
+  partagees donne la translation par difference avec POINT_BASE_IVION - la
+  seule valeur qui reste a fournir, parce qu'elle appartient au site Ivion
+  et non a la maquette. Un audit sans emplacement_partage fait retomber sur
+  les valeurs de repli, et le rapport le DIT.
+
+Usage : python3 gen_sitemodel.py <zones.json> [nom_batiment] [--scs]
+        --scs applique la transformation ; sans lui, sortie sandbox.
 """
-import json, pathlib, sys
+import json, math, pathlib, sys
 from shapely.geometry import Polygon
 from shapely.ops import unary_union
 
@@ -65,26 +72,22 @@ SCS = "--scs" in sys.argv
 BATIMENT = ARGS[1] if len(ARGS) > 1 else "Junior"
 SITE = "The Study"
 
-# Origine interne Revit -> point de base Ivion actuel, en coordonnees partagees.
-# Mesure : ivion_api (ancien point de base) + PEP v1.9 (controle K3).
-DX, DY, DZ = 17.521326, -1.691684, -1.240
-THETA = -31.54      # degres, rotation appliquee aux COORDONNEES, repere
-                    # projet -> repere SCS. Attention au sens : l'angle au
-                    # nord du projet est +31.54 deg dans le sens TRIGONO-
-                    # METRIQUE pour amener le vecteur nord projet sur le nord
-                    # geographique (le nord projet est dans le quart NE du
-                    # reel). Transformer des COORDONNEES est l'operation
-                    # inverse, d'ou le signe negatif. Verifie : seul ce signe
-                    # place Junior dans l'emprise du site_model reel de
-                    # The Study (X -56.9..-36.6, Y 29.1..58.9 dans
-                    # X -58.3..24.8, Y -1.4..60.4).
-                    # Le SCS est aligne sur le nord GRILLE MTM8 : la fiche du
-                    # point de base Ivion declare une rotation de 0 deg.
+# POINT DE BASE IVION du site, en coordonnees partagees (m). C'est le SEUL
+# parametre qui ne se lit nulle part dans la maquette : il appartient au site
+# Ivion, pas au modele Revit. Valeur The Study, fiche du point de base -
+# le SCS est aligne sur le nord GRILLE MTM8 (rotation declaree 0 deg).
+POINT_BASE_IVION = (296934.640, 5038973.460, 125.000)
 
-if SCS and THETA is None:
-    sys.exit("REFUS : --scs demande mais THETA n'est pas mesure. Lever l'angle "
-             "par GET /api/site/{siteId}/affine_ref_sys ou POST /transform, "
-             "ou par deux points communs au site_model existant et a la maquette.")
+# Repli employe SEULEMENT si l'audit ne porte pas son emplacement partage.
+# Valeurs mesurees le 2026-09-22 sur The Study.
+THETA_REPLI = -0.5504768                            # radians
+DXYZ_REPLI = (17.521326, -1.691684, -1.240)         # metres
+
+# THETA, DX, DY, DZ sont etablis plus bas, a la lecture du fichier : ils
+# sortent de l'audit, mesures par Revit. Voir section 1.
+THETA = None
+DX = DY = DZ = 0.0
+
 MM = 1000.0
 EPS = 1e-6
 ORDRE = {"FLOOR_1": 1, "FLOOR_2": 2, "FLOOR_3": 3, "FLOOR_4": 4,
@@ -102,8 +105,7 @@ def xy(x, y):
     """mm dans le repere de l'origine interne Revit -> m dans le repere de sortie."""
     if not SCS:
         return round(x / MM, PREC), round(y / MM, PREC)
-    import math
-    t = math.radians(THETA)
+    t = THETA                     # deja en RADIANS, applique tel quel
     u, v = x / MM, y / MM
     return (round(u * math.cos(t) - v * math.sin(t) + DX, PREC),
             round(u * math.sin(t) + v * math.cos(t) + DY, PREC))
@@ -126,7 +128,48 @@ def gj(ext, trous=()):
 
 
 # ---------------------------------------------------------------- 1. lecture
-zones = json.loads(SRC.read_text(encoding="utf-8"))["zones"]
+donnees = json.loads(SRC.read_text(encoding="utf-8"))
+zones = donnees["zones"]
+
+# La transformation vers le SCS n'est PAS en dur : elle se lit dans l'audit,
+# ou Revit l'a mesuree (entete.emplacement_partage, reporte ici par
+# audit_to_zones).
+#   angle_nord_vrai_rad -> THETA, applique TEL QUEL aux coordonnees
+#   est_ouest / nord_sud / elevation -> l'origine interne du modele, en
+#   coordonnees PARTAGEES ; la translation est son ecart au point de base
+#   Ivion, seule valeur qui reste a fournir.
+_emplacement = (donnees.get("_entete") or {}).get("emplacement_partage") or {}
+_angle = _emplacement.get("angle_nord_vrai_rad")
+_est = _emplacement.get("est_ouest_mm")
+_nord = _emplacement.get("nord_sud_mm")
+_elev = _emplacement.get("elevation_mm")
+
+if _angle is not None and None not in (_est, _nord, _elev):
+    THETA = _angle
+    DX = _est / MM - POINT_BASE_IVION[0]
+    DY = _nord / MM - POINT_BASE_IVION[1]
+    DZ = _elev / MM - POINT_BASE_IVION[2]
+    INFO_REPERE = ("transformation LUE DANS L'AUDIT (mesuree par Revit) : "
+                   "origine interne (%.3f ; %.3f ; %.3f) en coordonnees "
+                   "partagees, point de base Ivion (%.3f ; %.3f ; %.3f)"
+                   % (_est / MM, _nord / MM, _elev / MM,
+                      POINT_BASE_IVION[0], POINT_BASE_IVION[1],
+                      POINT_BASE_IVION[2]))
+else:
+    THETA = THETA_REPLI
+    DX, DY, DZ = DXYZ_REPLI
+    INFO_REPERE = ("ATTENTION : l'audit ne porte pas son emplacement partage "
+                   "(entete.emplacement_partage). Transformation de REPLI, "
+                   "valeurs en dur mesurees le 2026-09-22 sur The Study - "
+                   "elles ne valent que pour cette affaire, et pour ce point "
+                   "de base.")
+
+THETA_DEG = math.degrees(THETA)
+
+if SCS and THETA is None:
+    sys.exit("REFUS : --scs demande mais aucun angle disponible, ni dans "
+             "l'audit ni en repli. Relancer l'audit des volumes : son en-tete "
+             "porte emplacement_partage.angle_nord_vrai_rad.")
 
 # ------------------------------------- 2. arbitrage des separations inclinees
 retraiter = []
@@ -193,10 +236,17 @@ for zn, tr in zones.items():
         p = Polygon([(x, y) for x, y in t["coords"]])
         assert p.equals(polys[zn]), "contour non constant sur %s / %s" % (zn, t["etage"])
 
+# Union GLOBALE des emprises : une INFORMATION, pas un controle. Sur un site
+# a plusieurs batiments elle est naturellement un MultiPolygon - l'audit du
+# 2026-09-22 (Junior + SC_atelier + SE_office) en donne 3 parties, et c'est
+# normal. La seule union qui doive etre simple est celle d'un GROUPE de la
+# regle P, et c'est elle qui decide du regroupement, plus bas.
 union = unary_union(list(polys.values()))
-if union.geom_type != "Polygon":
-    sys.exit("ERREUR : union non simple (%s)" % union.geom_type)
-union = union.simplify(0)
+if union.geom_type == "Polygon":
+    INFO_UNION = "union des emprises : Polygon (1 partie)"
+else:
+    INFO_UNION = ("union des emprises : %s (%d partie(s))"
+                  % (union.geom_type, len(union.geoms)))
 
 
 def attrs_floor(zn, t):
@@ -280,8 +330,8 @@ for noms, emprise, sig in groupes:
             "keovia_ref_zones": ";".join(noms),
             "keovia_site": SITE,
             "keovia_cls_nature_volume": "ZONE_IVION",
-            "keovia_repere": ("SCS Ivion (DX %.6f DY %.6f DZ %.3f, rotation %s deg)"
-                              % (DX, DY, DZ, THETA)) if SCS else
+            "keovia_repere": ("SCS Ivion (DX %.6f DY %.6f DZ %.3f, rotation "
+                              "%.4f deg)" % (DX, DY, DZ, THETA_DEG)) if SCS else
                              "ORIGINE INTERNE REVIT, metres, AUCUNE transformation "
                              "- non georeference, sandbox uniquement",
             "keovia_src": "A_VOL / %s" % SRC.name,
@@ -292,6 +342,12 @@ for noms, emprise, sig in groupes:
 DST = HERE / ("site_model_%s.json" % BATIMENT.lower())
 DST.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
 
+print(INFO_UNION)
+print("Repere : %s" % INFO_REPERE)
+print("         THETA %.7f rad (%.4f deg) - DX/DY/DZ %.3f / %.3f / %.3f m%s"
+      % (THETA, THETA_DEG, DX, DY, DZ,
+         "" if SCS else "  [NON APPLIQUES : sortie sandbox]"))
+print()
 print("Regle P : %d zone(s) -> %d signature(s) d'elevations -> %d BUILDING"
       % (len(zones), len(par_sig), len(groupes)))
 for noms, _, sig in groupes:

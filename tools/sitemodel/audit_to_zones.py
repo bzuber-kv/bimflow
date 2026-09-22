@@ -370,6 +370,9 @@ sortie = {
         "date_audit": entete.get("date"),
         "repere": "coordonnees internes du modele Revit, mm - aucune "
                   "transformation (c'est gen_sitemodel qui transforme)",
+        # Reporte TEL QUEL depuis l'audit : c'est Revit qui l'a mesure, et
+        # c'est de la que gen_sitemodel tire THETA et la translation.
+        "emplacement_partage": entete.get("emplacement_partage"),
         "volumes_lus": len(volumes),
         "volumes_retenus": retenus,
         "volumes_ecartes": len(refus),

@@ -1,9 +1,9 @@
 # sitemodel — du volume Revit au `site_model` Ivion
 
 > Statut au 2026-09-22 : `Audit volumes` **a tourné dans Revit** ce jour-là,
-> et c'est sa sortie qui a fourni les chiffres cités plus bas — 27 volumes,
-> 9 zones, deux séparations non horizontales. `gen_sitemodel.py` a été écrit
-> par Bruno et entre au dépôt tel quel.
+> et c'est sa sortie qui a fourni les chiffres cités plus bas — 30 volumes,
+> 11 zones, trois bâtiments. `gen_sitemodel.py` a été écrit par Bruno et
+> entre au dépôt tel quel.
 
 ## Une seule commande
 
@@ -62,11 +62,28 @@ la zone en cause. Un contour raccommodé en silence produirait un
 `site_model` plausible et faux — qu'Ivion refuserait, ou pire, accepterait.
 
 Quatre contrôles sont imprimés, et ce sont eux qui disent si la
-reconstruction est bonne — valeurs attendues sur Junior, mesurées le
-2026-09-22 : **27/27** contours reconstruits · écart contour ↔ face
-horizontale **sous 0,5 m²** · contour **constant** sur toutes les tranches
-d'une zone · partition en plan **326,2 m² de part et d'autre**, écart
-**0,00 m²**.
+reconstruction est bonne.
+
+### Les chiffres de référence — audit réel du 2026-09-22
+
+C'est le jeu d'essai de référence : **30 volumes, 11 zones**, trois
+bâtiments (`Junior`, `SC_atelier`, `SE_office`).
+
+| Contrôle | Valeur mesurée |
+|---|---|
+| contours reconstruits | **30/30** |
+| écart contour ↔ face horizontale | **0,0006 m²** |
+| R1, contour constant par zone | vérifiée sur **11 zones** |
+| partition en plan | **408,97 m²**, écart **0,00 m²** |
+| sortie | **11 BUILDING**, 6 noms d'étage, **5 185,8 m³** |
+| contrôles Ivion (C1, C2, C3, C6, C10, 5.1, 2a) | **tous au vert** |
+
+Des chiffres plus restreints ont circulé ici avant : 27 volumes, 9 zones,
+partition 326,2 m². Ils portaient sur le seul `Junior` ; ce sont ceux du
+tableau ci-dessus qui font foi.
+
+Le JSON de cet audit ira dans `exemples/`, pour que ces chiffres se
+rejouent sans Revit et servent de repère de régression.
 
 Le découpage du nom `VOL__<zone>__<étage>__<attribut>` n'est pas réécrit
 ici : il vient du module partagé `bimflow.extension/lib/bimflow_noms.py`,
@@ -139,9 +156,9 @@ de niveau et diffère de la géométrie de **29 065 mm** sur The Study
 
 ## Ce qui est éprouvé, et ce qui ne l'est pas
 
-**`AuditVolumes` a tourné dans Revit le 2026-09-22** : 27 volumes, 9 zones,
-partition mesurée à **0,00 m² d'écart pour 326,2 m²**, deux séparations non
-horizontales. Ce sont les chiffres de référence des contrôles ci-dessus.
+**`AuditVolumes` a tourné dans Revit le 2026-09-22** : 30 volumes, 11 zones,
+trois bâtiments, partition mesurée à **0,00 m² d'écart pour 408,97 m²**. Ce
+sont les chiffres de référence des contrôles ci-dessus.
 
 **Le JSON de cette exécution n'est pas encore au dépôt.** Il ira dans
 `tools/sitemodel/exemples/`, qui existe pour l'accueillir : c'est lui qui

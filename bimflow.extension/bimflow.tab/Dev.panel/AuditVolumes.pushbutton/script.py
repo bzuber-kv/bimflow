@@ -9,10 +9,10 @@ hors Revit : controle du nommage, alimentation du decoupage site_model
 Ivion, surfaces par niveau.
 
 #############################################################################
-# STATUT : EXECUTE UNE FOIS dans Revit, le 2026-09-22 - 27 volumes,         #
-# 9 zones, deux separations non horizontales. La sortie a ete exploitee par #
-# la chaine site_model (tools/sitemodel), qui en a tire une partition en    #
-# plan fermee a 0,00 m2 pres pour 326,2 m2.                                 #
+# STATUT : EXECUTE dans Revit le 2026-09-22 - 30 volumes, 11 zones, trois   #
+# batiments. La sortie a ete exploitee par la chaine site_model             #
+# (tools/sitemodel), qui en a tire 30/30 contours reconstruits et une       #
+# partition en plan fermee a 0,00 m2 pres pour 408,97 m2.                   #
 # Une execution n'est pas une garantie : l'outil reste au panneau Dev tant  #
 # qu'il n'a pas servi plusieurs fois, et le JSON de cette execution n'est   #
 # pas encore verse a tools/sitemodel/exemples/.                             #

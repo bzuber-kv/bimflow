@@ -11,7 +11,12 @@ Ce dossier accueille des JSON **réels** produits par le bouton pyRevit
 
 | Fichier | État |
 |---|---|
-| l'audit du **2026-09-22** — 27 volumes, 9 zones, partition 326,2 m² à 0,00 m² d'écart, deux séparations non horizontales | **à déposer** — il existe, il n'est pas encore versé |
+| l'audit du **2026-09-22** — 30 volumes, 11 zones, trois bâtiments, partition 408,97 m² à 0,00 m² d'écart | **à déposer** — il existe, il n'est pas encore versé |
+
+Il doit porter son `entete.emplacement_partage` : c'est de là que
+`gen_sitemodel` tire l'angle au nord vrai et la translation vers le SCS.
+Un audit qui en serait dépourvu ferait retomber la chaîne sur les valeurs
+de repli — elle le dit, mais elles ne valent que pour The Study.
 
 ## Pourquoi au dépôt, alors que les maquettes n'y entrent jamais
 
