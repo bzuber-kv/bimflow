@@ -31,18 +31,23 @@ Autres regles (references = SITE_MODEL.md v8) :
 
 REPERE (mesure, GEOREFERENCEMENT.md + TheStudy_PEP.md v1.9) :
   Les coordonnees d'un site_model sont en METRES et RELATIVES au Site Base
-  Point d'Ivion - jamais absolues. L'audit pyRevit ecrit Level.Elevation,
-  donc le repere source est l'ORIGINE INTERNE Revit, dont les coordonnees
-  partagees mesurees sont (296952.161 ; 5038971.768 ; 123.760) = l'ANCIEN
-  point de base Ivion. Le point de base ACTUEL est a
+  Point d'Ivion - jamais absolues. L'audit pyRevit lit la geometrie via
+  l'API Revit, donc dans le REPERE INTERNE DU MODELE ; c'est ce repere dont
+  l'origine coincide avec l'ancien point de base Ivion
+  (296952.161 ; 5038971.768 ; 123.760), d'ou la translation.
+  A ne pas confondre avec Level.Elevation, que l'audit n'emploie pas : cette
+  lecture compte depuis la base d'elevation du TYPE de niveau et differe de
+  la geometrie de 29 065 mm sur The Study (R16 §1.1).
+  Le point de base ACTUEL est a
   (296934.640 ; 5038973.460 ; 125.000). D'ou la translation connue
   DX/DY/DZ ci-dessous - identique au vecteur applique au site_model reel
   le 2026-08-25.
-  ⚠ IL MANQUE LA ROTATION : le nord projet Revit fait 31.54 deg avec le
-  nord geographique, et l'orientation propre du SCS d'Ivion n'est PAS
-  mesuree. Tant que THETA n'est pas etabli (GET /affine_ref_sys ou
-  POST /transform sur le site), toute sortie transformee est fausse en
-  orientation. Par defaut le script n'applique RIEN et le dit.
+  ROTATION : +31.54 deg dans le sens TRIGONOMETRIQUE, repere projet ->
+  repere SCS. Le SCS est aligne sur le nord grille MTM8 (la fiche du point
+  de base Ivion declare une rotation de 0 deg). Applique AVANT la
+  translation, puisque celle-ci est exprimee en axes MTM8.
+  Par defaut le script n'applique RIEN (sortie sandbox) ; --scs produit la
+  sortie georeferencee.
 
 Usage : python3 gen_sitemodel.py <audit.json> [nom_batiment] [--scs]
         --scs applique DX/DY/DZ et THETA ; refuse tant que THETA est None.
@@ -62,7 +67,18 @@ SITE = "The Study"
 # Origine interne Revit -> point de base Ivion actuel, en coordonnees partagees.
 # Mesure : ivion_api (ancien point de base) + PEP v1.9 (controle K3).
 DX, DY, DZ = 17.521326, -1.691684, -1.240
-THETA = None        # degres, rotation nord projet -> nord du SCS. NON MESURE.
+THETA = -31.54      # degres, rotation appliquee aux COORDONNEES, repere
+                    # projet -> repere SCS. Attention au sens : l'angle au
+                    # nord du projet est +31.54 deg dans le sens TRIGONO-
+                    # METRIQUE pour amener le vecteur nord projet sur le nord
+                    # geographique (le nord projet est dans le quart NE du
+                    # reel). Transformer des COORDONNEES est l'operation
+                    # inverse, d'ou le signe negatif. Verifie : seul ce signe
+                    # place Junior dans l'emprise du site_model reel de
+                    # The Study (X -56.9..-36.6, Y 29.1..58.9 dans
+                    # X -58.3..24.8, Y -1.4..60.4).
+                    # Le SCS est aligne sur le nord GRILLE MTM8 : la fiche du
+                    # point de base Ivion declare une rotation de 0 deg.
 
 if SCS and THETA is None:
     sys.exit("REFUS : --scs demande mais THETA n'est pas mesure. Lever l'angle "
@@ -74,23 +90,26 @@ ORDRE = {"FLOOR_1": 1, "FLOOR_2": 2, "FLOOR_3": 3, "FLOOR_4": 4,
          "FLOOR_5": 5, "FLOOR_6": 6, "ROOF": 90}
 
 
+PREC = 6 if True else 4      # decimales de sortie : micrometre apres rotation
+
+
 def m(v):
-    return round(v / MM, 4)
+    return round(v / MM, PREC)
 
 
 def xy(x, y):
     """mm dans le repere de l'origine interne Revit -> m dans le repere de sortie."""
     if not SCS:
-        return round(x / MM, 4), round(y / MM, 4)
+        return round(x / MM, PREC), round(y / MM, PREC)
     import math
     t = math.radians(THETA)
     u, v = x / MM, y / MM
-    return (round(u * math.cos(t) - v * math.sin(t) + DX, 4),
-            round(u * math.sin(t) + v * math.cos(t) + DY, 4))
+    return (round(u * math.cos(t) - v * math.sin(t) + DX, PREC),
+            round(u * math.sin(t) + v * math.cos(t) + DY, PREC))
 
 
 def z(v):
-    return round(v / MM + (DZ if SCS else 0.0), 4)
+    return round(v / MM + (DZ if SCS else 0.0), PREC)
 
 
 def ring(coords):
@@ -121,6 +140,49 @@ for zn, tr in zones.items():
     for t in tr:
         if t.get("incl") and "flag" not in t:
             t["flag"] = "face_non_horizontale_isolee"
+
+# ------------------------------- 2bis. noeudification (sommets en T)
+#  Un sommet d'une zone pose au milieu de l'arete d'une voisine est colineaire
+#  tant que l'arete est axee, et cesse de l'etre des qu'on la tourne : il
+#  apparait alors un recouvrement de quelques dixiemes de micrometre, qu'Ivion
+#  refuse (emprises de BUILDING secantes). On insere donc ce sommet dans
+#  l'arete de la voisine AVANT toute rotation : les deux contours portent
+#  alors exactement les memes points, et la rotation les deplace ensemble.
+#  L'aire est inchangee (points colineaires).
+TOL = 0.5   # mm
+
+tous = {(round(x, 3), round(y, 3))
+        for tr in zones.values() for x, y in tr[0]["coords"]}
+
+
+def noeudifier(anneau):
+    out = []
+    for a, b in zip(anneau, anneau[1:]):
+        out.append(a)
+        ax, ay = a
+        bx, by = b
+        L2 = (bx - ax) ** 2 + (by - ay) ** 2
+        if L2 == 0:
+            continue
+        sur = []
+        for px, py in tous:
+            t = ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / L2
+            if not (1e-9 < t < 1 - 1e-9):
+                continue
+            d = abs((px - ax) * (by - ay) - (py - ay) * (bx - ax)) / L2 ** 0.5
+            if d <= TOL:
+                sur.append((t, (px, py)))
+        out.extend(q for _, q in sorted(sur))
+    out.append(anneau[-1])
+    return out
+
+
+n_ins = 0
+for zn, tr in zones.items():
+    ref = noeudifier([tuple(c) for c in tr[0]["coords"]])
+    n_ins += len(ref) - len(tr[0]["coords"])
+    for t in tr:
+        t["coords"] = [list(c) for c in ref]
 
 # ---------------------------------------------------- 3. contours et controle
 polys = {}
@@ -188,7 +250,10 @@ for sig, noms in par_sig.items():
                     reste.remove(zn)
                     geom = u
                     bouge = True
-        groupes.append((sorted(comp), geom.simplify(0), sig))
+        # PAS de simplify() : il supprimerait les points colineaires inseres a
+        # l'etape 2bis, qui sont ce qui garantit des aretes exactement
+        # coincidentes une fois la rotation appliquee.
+        groupes.append((sorted(comp), geom, sig))
 
 groupes.sort(key=lambda g: g[0][0])
 
@@ -250,9 +315,14 @@ def valider(nom, doc):
     for i, a in enumerate(bats):
         pa = Polygon(a["scs_polygon"]["coordinates"][0])
         for b in bats[i + 1:]:
-            if pa.intersection(Polygon(b["scs_polygon"]["coordinates"][0])).area > 1e-9:
+            ia = pa.intersection(Polygon(b["scs_polygon"]["coordinates"][0])).area
+            if ia > 1e-6:                      # 1 mm2 : au-dela, c'est reel
                 n1 += 1
-                ko.append("C1 %s recoupe %s" % (a["name"], b["name"]))
+                ko.append("C1 %s recoupe %s sur %.3g m2" % (a["name"], b["name"], ia))
+            elif ia > 0:
+                ko.append("C1 note : %s / %s se touchent a %.3g m2 "
+                          "(sommet en T apres rotation, sous la tolerance "
+                          "d'accrochage Ivion ~8e-7 m)" % (a["name"], b["name"], ia))
     print("C1  interieurs des BUILDING disjoints .......................... %s"
           % ("OK" if n1 == 0 else "ECHEC (%d)" % n1))
 

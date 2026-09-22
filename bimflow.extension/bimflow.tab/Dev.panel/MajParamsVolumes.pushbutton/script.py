@@ -67,10 +67,6 @@ BATIMENT_DU_PREFIXE = {
     "SC": "Senior_Central",
 }
 
-SEPARATEUR_NOM = "__"
-NB_SEGMENTS = 4
-PREFIXE_ATTENDU = "VOL"
-
 NOM_ZONE = "REF_Zone"
 NOM_ETAGE = "REF_Etage"
 NOM_BATIMENT = "REF_Batiment"
@@ -85,6 +81,21 @@ AUTORISER_NON_DETACHE = False
 # --------------------------------------------------------------------------
 
 from pyrevit import revit, script, forms
+
+# Le decoupage du nom vit dans UN seul module, partage avec le bouton d'audit
+# et avec tools/sitemodel/audit_to_zones.py (dossier lib\ de l'extension,
+# ajoute au chemin par pyRevit).
+try:
+    from bimflow_noms import lire as lire_nom, batiment_du as batiment_de_zone
+except ImportError:
+    from pyrevit import forms as _formulaires
+    _formulaires.alert(
+        u"Module partage bimflow_noms introuvable.\n\n"
+        u"Il doit se trouver dans bimflow.extension\\lib\\. Sans lui, le "
+        u"decoupage des noms de volumes n'est pas disponible et ce script "
+        u"ne s'execute pas.",
+        exitscript=True,
+    )
 
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
@@ -155,33 +166,9 @@ if collaboratif and detache is not True and not AUTORISER_NON_DETACHE:
 # --------------------------------------------------------------------------
 
 
-def parser_nom(nom):
-    """(zone, etage, attribut) ou (None, motif du refus)."""
-    if not nom:
-        return None, u"nom de famille vide"
-    segments = nom.split(SEPARATEUR_NOM)
-    if len(segments) != NB_SEGMENTS:
-        return None, u"{0} segment(s) au lieu de {1}".format(
-            len(segments), NB_SEGMENTS)
-    if segments[0] != PREFIXE_ATTENDU:
-        return None, u"segment 0 = \"{0}\" au lieu de \"{1}\"".format(
-            segments[0], PREFIXE_ATTENDU)
-    if not segments[1]:
-        return None, u"REF_Zone (segment 1) vide"
-    if not segments[2]:
-        return None, u"REF_Etage (segment 2) vide"
-    if not segments[3]:
-        return None, u"attribut (segment 3) vide - il vaut \"0\" par defaut"
-    return (segments[1], segments[2], segments[3]), None
-
-
-def batiment_du(zone):
-    """REF_Batiment deduit du prefixe de la zone, ou (None, motif)."""
-    prefixe = zone.split("_")[0]
-    if prefixe in BATIMENT_DU_PREFIXE:
-        return BATIMENT_DU_PREFIXE[prefixe], None
-    return None, u"prefixe de zone \"{0}\" absent de la table ({1})".format(
-        prefixe, u", ".join(sorted(BATIMENT_DU_PREFIXE.keys())))
+# Le decoupage lui-meme est dans bimflow_noms (lire_nom, batiment_de_zone) :
+# lire_nom est la lecture STRICTE - au moindre defaut de nom, elle refuse, et
+# c'est bien ce qu'il faut a un outil qui ecrit.
 
 
 # --------------------------------------------------------------------------
@@ -242,13 +229,13 @@ for eid in ids:
         ignores.append((eid, nom_famille, u"volume qui n'est pas in situ"))
         continue
 
-    lu, refus = parser_nom(nom_famille)
+    lu, refus = lire_nom(nom_famille)
     if lu is None:
         ignores.append((eid, nom_famille, u"nom hors motif : {0}".format(refus)))
         continue
     zone, etage, attribut = lu
 
-    batiment, refus_bat = batiment_du(zone)
+    batiment, refus_bat = batiment_de_zone(zone, BATIMENT_DU_PREFIXE)
     if batiment is None:
         ignores.append((eid, nom_famille, refus_bat))
         continue

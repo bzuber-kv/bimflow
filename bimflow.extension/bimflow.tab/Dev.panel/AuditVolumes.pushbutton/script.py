@@ -65,11 +65,6 @@ __author__ = "Keovia Solutions inc."
 # PARAMETRES DE L'AUDIT - a ajuster ici, pas dans le corps du script
 # --------------------------------------------------------------------------
 
-SEPARATEUR_NOM = "__"
-NB_SEGMENTS = 4
-PREFIXE_ATTENDU = "VOL"
-ATTRIBUT_ATTENDU = "0"
-
 # Parametres releves sur chaque volume (instance ET type), meme vides.
 PREFIXES_PARAMETRES = ("REF_", "CLS_")
 
@@ -98,6 +93,24 @@ import datetime
 from collections import OrderedDict
 
 from pyrevit import revit, script, forms
+
+# Le decoupage du nom vit dans UN seul module, partage avec le bouton
+# d'ecriture et avec tools/sitemodel/audit_to_zones.py (dossier lib\ de
+# l'extension, ajoute au chemin par pyRevit).
+try:
+    from bimflow_noms import (
+        decouper as decouper_nom,
+        ATTRIBUT_DEFAUT as ATTRIBUT_ATTENDU,
+    )
+except ImportError:
+    from pyrevit import forms as _formulaires
+    _formulaires.alert(
+        u"Module partage bimflow_noms introuvable.\n\n"
+        u"Il doit se trouver dans bimflow.extension\\lib\\. Sans lui, le "
+        u"decoupage des noms de volumes n'est pas disponible et ce script "
+        u"ne s'execute pas.",
+        exitscript=True,
+    )
 
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
@@ -328,28 +341,9 @@ for eid in ids_niveaux:
 # 2. Lecteurs : nom, parametres, geometrie
 # --------------------------------------------------------------------------
 
-def parser_nom(nom):
-    """(segments ou None, defauts). Decoupe sur '__' uniquement."""
-    if not nom:
-        return None, [u"nom de famille vide"]
-    segments = nom.split(SEPARATEUR_NOM)
-    if len(segments) != NB_SEGMENTS:
-        return None, [u"{0} segment(s) au lieu de {1}".format(
-            len(segments), NB_SEGMENTS)]
-    defauts = []
-    if segments[0] != PREFIXE_ATTENDU:
-        defauts.append(u"segment 0 = \"{0}\" au lieu de \"{1}\"".format(
-            segments[0], PREFIXE_ATTENDU))
-    for i, s in enumerate(segments):
-        if s == u"":
-            defauts.append(u"segment {0} vide".format(i))
-        elif s.startswith(u"_") or s.endswith(u"_"):
-            defauts.append(
-                u"segment {0} (\"{1}\") commence ou finit par un underscore "
-                u"- triple underscore probable".format(i, s))
-        elif u" " in s:
-            defauts.append(u"segment {0} (\"{1}\") contient un espace".format(i, s))
-    return segments, defauts
+# Le decoupage lui-meme est dans bimflow_noms (decouper_nom) : lecture
+# TOLERANTE - elle rend les segments des que leur nombre est bon et liste a
+# cote tout ce qui cloche, ce qu'il faut a un audit, qui decrit sans juger.
 
 
 def valeur_parametre(p, porteur):
@@ -678,7 +672,7 @@ def auditer_volume(eid):
     if in_situ is not True:
         non_in_situ.append((eid, family_name))
 
-    segments, defauts = parser_nom(family_name)
+    segments, defauts = decouper_nom(family_name)
     v["nom_conforme"] = segments is not None and not defauts
     v["segments"] = OrderedDict([
         ("prefixe", segments[0] if segments else None),
