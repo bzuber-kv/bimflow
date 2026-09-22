@@ -1,0 +1,22 @@
+DEV — outils NON EPROUVES
+
+Role : porter les outils ecrits mais jamais executes dans Revit. Le statut
+« non eprouve » se lit ici, au ruban, et dans l'en-tete de chaque script ;
+il ne se porte plus par une exclusion du depot — un script hors git est du
+travail non sauvegarde (decision du 2026-09-22, qui revise celle du
+2026-09-19 ayant cree _non_eprouve\).
+
+Ce panneau n'est PAS un panneau de production. Ce qui s'y trouve n'a aucune
+garantie : cela peut echouer, rendre un resultat faux, ou ne pas se charger.
+
+Regle de sortie : un outil quitte ce panneau quand il a tourne et produit un
+resultat exploitable. Son panneau definitif releve de B25 ; le deplacer
+revient a renommer un dossier.
+
+A ne pas confondre avec l'ancien panneau « Apprentissage » (O1 bis, retire
+le 2026-09-19) : celui-la portait des essais jetables, celui-ci porte des
+outils destines a la production, avant leur premiere execution.
+
+Y est : audit volumes de zone (2026-09-22)
+
+Carte complete : docs\organisation_ruban.md
