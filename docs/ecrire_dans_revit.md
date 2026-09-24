@@ -145,13 +145,63 @@ déduire une écriture qui n'a pas eu lieu.
 
 ---
 
-## 7. Discipline générale, inchangée
+## 7. Écrire sur la maquette centrale
+
+*[règle, 2026-09-24 — le comportement du code, pas un fait Revit]*
+
+Jusqu'au 2026-09-24, les trois boutons volumes **refusaient** de tourner sur
+une maquette collaborative non détachée. Le garde-fou a fait son travail
+pendant la mise au point, mais il interdisait le seul usage qui compte à la
+fin : écrire sur la maquette de production.
+
+La règle vit maintenant dans **`bimflow.extension\lib\bimflow_maquette.py`**,
+écrite une seule fois pour les trois boutons :
+
+- sur **copie détachée** — rien ne change, aucune boîte de plus ;
+- sur **maquette centrale** — plus de refus, mais une confirmation qui
+  **nomme le fichier**, **annonce le nombre d'éléments concernés**, et fait
+  **cocher** que l'on est seul dessus (ACT-052 (2)). La case n'est pas un
+  ornement : non cochée, l'opération ne part pas.
+
+Le drapeau `AUTORISER_NON_DETACHE` a disparu des trois scripts. Une constante
+en tête de fichier que l'on met à `True` « juste pour cette fois » n'est pas
+un garde-fou : personne ne pense à la remettre à `False`.
+
+Corollaire pour l'audit, qui n'écrit rien : ce qu'il faut signaler n'est pas
+un risque d'écriture, c'est un **risque de vérité**. Un audit de la centrale
+décrit l'état *synchronisé* à l'instant de la lecture — le travail non
+synchronisé des autres n'y est pas, et le JSON portera pourtant une date qui
+fera autorité. Le constat part aussi dans le JSON.
+
+### À MESURER — l'emprunt exclusif d'un standard de projet
+
+> **Hypothèse, non mesurée au 2026-09-24.** Un nom de famille relève des
+> **standards de projet**, pas des éléments. En travail partagé, modifier un
+> standard demande un **emprunt exclusif**, que Revit peut refuser si un autre
+> utilisateur le détient. **La simulation ne le détectera jamais** : elle ne
+> teste que la lecture.
+
+C'est pour cela que `Renommer volumes` a un **mode 2, essai sur un seul
+volume** : il écrit pour de vrai sur une famille, et rapporte exactement ce
+que Revit rend, sans repli inventé. Même raisonnement que l'essai sur trois
+types, qui a servi (§4).
+
+Si Revit refuse, l'erreur exacte est à porter ici comme **fait mesuré**, avec
+la date, le nom de la maquette et l'état de réservation lu avant l'essai — ce
+serait une contrainte structurante pour **tout outil Keovia qui renomme des
+familles sur une maquette ACC**.
+
+---
+
+## 8. Discipline générale, inchangée
 
 - Tout script qui écrit est précédé d'un script d'**audit en lecture seule**
   sur le même périmètre.
-- Une maquette collaborative se traite sur **copie détachée** (R17).
+- La **copie détachée** (R17) reste la voie sûre pour une maquette
+  collaborative ; depuis le 2026-09-24 elle n'est plus la seule (§7).
   `IsWorkshared` reste vrai après un détachement conservant les sous-projets ;
-  c'est **`IsDetached`** qui décide.
+  c'est **`IsDetached`** qui décide, et sur une version de Revit où la
+  propriété serait illisible, le doute va du côté prudent : centrale.
 - Un script d'écriture affiche une **simulation** d'abord, puis une
   confirmation qui **nomme la maquette**, et fait **un seul commit** pour tout
   le lot.

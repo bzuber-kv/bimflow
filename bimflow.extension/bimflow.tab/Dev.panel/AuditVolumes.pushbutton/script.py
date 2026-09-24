@@ -22,6 +22,14 @@ Ivion, surfaces par niveau.
 LECTURE SEULE - aucune transaction n'est ouverte, rien n'est ecrit dans la
 maquette. La seule ecriture est le fichier JSON, hors du modele.
 
+MAQUETTE CENTRALE. Depuis le 2026-09-24, l'audit ne refuse plus de tourner
+sur une maquette collaborative non detachee. Ce qu'il signale alors n'est
+pas un risque d'ecriture - il n'ecrit pas - mais un risque de VERITE : il
+decrit l'etat SYNCHRONISE a l'instant de la lecture, le travail non
+synchronise des autres n'y est pas, et le JSON portera pourtant une date qui
+fera autorite. La confirmation nomme le fichier et annonce le nombre de
+volumes vus (ACT-052 (2)) ; le constat part aussi dans le JSON.
+
 HYPOTHESES POSEES A L'ECRITURE. Les executions ont prouve que le script
 tourne et que les contours sont reconstructibles ; elles n'ont pas statue
 une a une sur les quatre hypotheses ci-dessous, qui se lisent dans le
@@ -91,9 +99,9 @@ TOL_SEGMENT_MM = 1.0
 # Arrondi des coordonnees publiees.
 DECIMALES_MM = 1
 
-# Une maquette collaborative doit etre auditee sur une COPIE DETACHEE.
-# Ne passer a True qu'en connaissance de cause.
-AUTORISER_NON_DETACHE = False
+# Le drapeau AUTORISER_NON_DETACHE a disparu le 2026-09-24 : l'audit ne
+# refuse plus la maquette centrale, il la signale et fait confirmer
+# (lib\bimflow_maquette.py pour l'etat du document).
 
 # Le JSON ne s'ecrit ni dans OneDrive ni sous WORK (comparaison en minuscules).
 FRAGMENTS_INTERDITS = ("onedrive", "\\work\\")
@@ -116,6 +124,7 @@ try:
         NATURE_A_RENOMMER,
         NATURES,
     )
+    from bimflow_maquette import etat as etat_maquette
 except ImportError:
     from pyrevit import forms as _formulaires
     _formulaires.alert(
@@ -145,6 +154,8 @@ from Autodesk.Revit.DB import (
     UV,
     XYZ,
 )
+from Autodesk.Revit.UI import (TaskDialog, TaskDialogCommonButtons,
+                               TaskDialogResult)
 
 doc = revit.doc
 out = script.get_output()
@@ -216,30 +227,62 @@ def classe_de(nz):
 
 
 # --------------------------------------------------------------------------
-# 0. Garde-fous : document, copie detachee, sous-projets fermes
+# 0. Garde-fous : document, maquette centrale, sous-projets fermes
 # --------------------------------------------------------------------------
 
 if doc.IsFamilyDocument:
     forms.alert(u"Document famille : rien a auditer.", exitscript=True)
 
-collaboratif = bool(doc.IsWorkshared)
-detache = None
-try:
-    detache = bool(doc.IsDetached)
-except Exception:
-    detache = None
-
-if collaboratif and detache is not True and not AUTORISER_NON_DETACHE:
-    forms.alert(
-        u"Maquette collaborative, et ce n'est pas une copie detachee.\n\n"
-        u"L'audit est en lecture seule, mais la discipline bimflow veut qu'il "
-        u"tourne sur une copie detachee. Rouvrir la maquette avec "
-        u"\"Detacher du fichier central\", puis relancer.\n\n"
-        u"(Contournement : AUTORISER_NON_DETACHE en tete de script.)",
-        exitscript=True,
-    )
+# IsWorkshared reste True apres un detachement conservant les sous-projets :
+# c'est IsDetached qui tranche. La regle vit dans lib\bimflow_maquette.py.
+collaboratif, detache, CENTRALE = etat_maquette(doc)
 
 avertissements = []
+
+# MAQUETTE CENTRALE. Ce bloc etait un REFUS jusqu'au 2026-09-24. L'audit ne
+# modifie rien : ce qu'il faut signaler ici n'est pas un risque d'ecriture,
+# c'est un risque de VERITE. Un audit de la maquette centrale decrit ce
+# qu'elle contient a cet instant - le travail non synchronise des autres n'y
+# est pas, et le fichier produit portera pourtant une date qui fera autorite.
+if CENTRALE:
+    nb_volumes_vus = 0
+    try:
+        nb_volumes_vus = len(list(
+            FilteredElementCollector(doc)
+            .OfCategory(BuiltInCategory.OST_Mass)
+            .WhereElementIsNotElementType()
+            .ToElementIds()
+        ))
+    except Exception:
+        nb_volumes_vus = -1
+
+    dialogue_centrale = TaskDialog(u"bimflow - MAQUETTE CENTRALE")
+    dialogue_centrale.MainInstruction = u"Auditer la maquette de PRODUCTION ?"
+    dialogue_centrale.MainContent = (
+        u"Ce n'est PAS une copie detachee.\n\n"
+        u"Maquette : {0}\n"
+        u"Fichier : {1}\n\n"
+        u"Volumes vus d'ici : {2}\n\n"
+        u"L'audit NE MODIFIE RIEN - aucune transaction n'est ouverte. Mais il "
+        u"decrira la maquette telle qu'elle est a cet instant : ce que les "
+        u"autres n'ont pas encore synchronise n'y sera pas, et le JSON "
+        u"produit portera une date qui fera autorite.\n\n"
+        u"Recharger les derniers enregistrements avant de continuer.".format(
+            doc.Title,
+            doc.PathName or u"(jamais enregistree)",
+            nb_volumes_vus if nb_volumes_vus >= 0 else u"(illisible)")
+    )
+    dialogue_centrale.CommonButtons = (TaskDialogCommonButtons.Yes |
+                                       TaskDialogCommonButtons.No)
+    dialogue_centrale.DefaultButton = TaskDialogResult.No
+    if dialogue_centrale.Show() != TaskDialogResult.Yes:
+        forms.alert(u"Audit annule. Rien n'a ete lu ni ecrit.", exitscript=True)
+
+    avertissements.append(
+        u"**Audit de la MAQUETTE CENTRALE**, pas d'une copie detachee : il "
+        u"decrit l'etat synchronise a l'instant de la lecture. Le travail non "
+        u"synchronise des autres utilisateurs n'y figure pas."
+    )
 
 if collaboratif:
     try:

@@ -46,7 +46,20 @@ decision, avec dans chaque en-tete ce qui a ete MESURE, et sur quoi.
 On renomme AVANT d'auditer : un audit passe sur l'ancien motif decrirait un
 etat deja perime. Et le renommage est un bouton separe parce que le nom est
 la source de verite : on n'ecrit pas la source dans la transaction qui la
-lit. Les trois ne tournent que sur copie detachee (R17).
+lit.
+
+MAQUETTE CENTRALE, depuis le 2026-09-24. Les trois refusaient de tourner sur
+une maquette collaborative non detachee. Ils laissent passer desormais,
+apres une confirmation qui nomme le fichier, annonce le nombre d'elements
+concernes et fait cocher que l'on est seul dessus (ACT-052 (2)). La copie
+detachee (R17) reste la voie sure ; elle n'est plus la seule. Le
+comportement sur copie detachee, lui, n'a pas bouge d'un mot.
+
+AVANT LE PREMIER LOT SUR CENTRALE : le mode 2 de « Renommer volumes »,
+l'essai sur UN volume. Un nom de famille releve des standards de projet, et
+en travail partage les modifier demande un emprunt exclusif que Revit peut
+refuser [hypothese, non mesuree au 2026-09-24]. La simulation ne le verra
+jamais - elle ne teste que la lecture.
 
 Un outil d'ecriture peut se trouver ici : le statut du panneau porte sur la
 maturite, pas sur le mode d'action. Celui qui ecrit garde ses garde-fous -

@@ -15,10 +15,18 @@ deja. Ne touche JAMAIS a la geometrie, ni au nom de famille, ni au type.
 # volumes, 1010 valeurs ecrites, 0 parametre absent. Verifie NON PAR LE     #
 # RAPPORT DU SCRIPT mais par un audit relance apres coup (celui de 16h45) : #
 # 202/202 volumes ou le nom et les parametres disent la meme chose.         #
-# Ce script ECRIT. Essai sur COPIE DETACHEE uniquement (R17). Le succes     #
-# affiche ici NE PROUVE RIEN : la verification se fait en nomenclature ou   #
-# par un audit separe - c'est ainsi que celle-ci a ete faite.               #
+# Ce script ECRIT. Le succes affiche ici NE PROUVE RIEN : la verification   #
+# se fait en nomenclature ou par un audit separe - c'est ainsi que celle-ci #
+# a ete faite.                                                              #
 #############################################################################
+
+MAQUETTE CENTRALE. Depuis le 2026-09-24, ce script ne refuse plus d'ecrire
+sur une maquette collaborative non detachee - la copie detachee (R17) reste
+la voie sure, elle n'est plus la seule. Il demande une confirmation qui
+NOMME le fichier, ANNONCE le nombre de volumes et de valeurs, et fait cocher
+que l'on est seul dessus (ACT-052 (2)). Sur copie detachee, rien ne change.
+La regle vit dans lib\\bimflow_maquette.py, une seule fois pour les trois
+boutons.
 
 CE QUI EST ECRIT, volume par volume :
     REF_Zone           segment 1, rafraichi a chaque passage
@@ -85,8 +93,9 @@ BATIMENT_DU_CODE = {
     "EXT": "Site",
 }
 
-# Une maquette collaborative doit etre traitee sur une COPIE DETACHEE (R17).
-AUTORISER_NON_DETACHE = False
+# Le drapeau AUTORISER_NON_DETACHE a disparu le 2026-09-24 : une maquette
+# centrale se traite par une confirmation (lib\bimflow_maquette.py), pas par
+# une constante en tete de fichier que personne ne pense a remettre a False.
 
 # --------------------------------------------------------------------------
 
@@ -95,13 +104,15 @@ from pyrevit import revit, script, forms
 try:
     from bimflow_noms import (lire as lire_nom, ref_batiment,
                               incoherence_etage_nature)
+    from bimflow_maquette import (etat as etat_maquette, mot_de_letat,
+                                  confirmer_centrale)
 except ImportError:
     from pyrevit import forms as _formulaires
     _formulaires.alert(
-        u"Module partage bimflow_noms introuvable.\n\n"
-        u"Il doit se trouver dans bimflow.extension\\lib\\. Sans lui, le "
-        u"decoupage des noms de volumes n'est pas disponible et ce script "
-        u"ne s'execute pas.",
+        u"Modules partages bimflow_noms / bimflow_maquette introuvables.\n\n"
+        u"Ils doivent se trouver dans bimflow.extension\\lib\\. Sans eux, ni "
+        u"le decoupage des noms de volumes ni la porte d'entree des ecritures "
+        u"ne sont disponibles, et ce script ne s'execute pas.",
         exitscript=True,
     )
 
@@ -158,25 +169,15 @@ def lien_de(eid):
 if doc.IsFamilyDocument:
     forms.alert(u"Document famille : rien a traiter.", exitscript=True)
 
-collaboratif = bool(doc.IsWorkshared)
-detache = None
-try:
-    detache = bool(doc.IsDetached)
-except Exception:
-    detache = None
-
 # IsWorkshared reste True apres un detachement conservant les sous-projets :
-# c'est IsDetached qui tranche.
-if collaboratif and detache is not True and not AUTORISER_NON_DETACHE:
-    forms.alert(
-        u"Maquette collaborative, et ce n'est pas une copie detachee.\n\n"
-        u"Ce script ECRIT dans le modele : il ne tourne que sur une copie "
-        u"detachee (R17 - sur central inaccessible, Revit refuse la "
-        u"transaction APRES avoir affiche le resultat).\n\n"
-        u"Rouvrir la maquette avec \"Detacher du fichier central\", puis "
-        u"relancer.",
-        exitscript=True,
-    )
+# c'est IsDetached qui tranche. La regle vit dans lib\bimflow_maquette.py.
+collaboratif, detache, CENTRALE = etat_maquette(doc)
+
+out.print_md(u"**Maquette** : `{0}` - {1}".format(
+    doc.Title, mot_de_letat(collaboratif, detache)))
+
+# La confirmation « maquette centrale » est au §3 : elle annonce le nombre de
+# valeurs et de volumes concernes, qui n'existent qu'apres la lecture.
 
 # --------------------------------------------------------------------------
 # 1. Lecture par GUID
@@ -381,7 +382,26 @@ if not prevues:
 
 # --------------------------------------------------------------------------
 # 3. Confirmation explicite
+#
+# Sur MAQUETTE CENTRALE, une confirmation de plus vient d'abord : elle nomme
+# le fichier, annonce le nombre d'elements et fait cocher que l'on est seul
+# dessus (ACT-052 (2)). Sur copie detachee, elle ne s'affiche pas - le
+# comportement y est celui d'avant le 2026-09-24.
 # --------------------------------------------------------------------------
+
+if CENTRALE and not confirmer_centrale(
+        doc,
+        u"Ecrire les parametres partages des volumes",
+        len(volumes_touches), u"volume(s)",
+        u"{0} valeur(s) au total, en un seul commit : un echec annule "
+        u"tout.".format(len(prevues))):
+    out.print_md(
+        u"---\n**Annule.** Aucune transaction n'a ete ouverte, rien n'a ete "
+        u"ecrit.\n\n"
+        u"> La confirmation « maquette centrale » demande un Oui **et** la "
+        u"case « je suis seul sur cette maquette »."
+    )
+    script.exit()
 
 dialogue = TaskDialog(u"bimflow - MAJ des parametres de volumes")
 dialogue.MainInstruction = u"Ecrire {0} valeur(s) sur {1} volume(s) ?".format(

@@ -23,12 +23,28 @@ triee par nom, c'est alors descendre le batiment colonne par colonne.
 # deux ont rendu le meme resultat, au volume pres.                          #
 #############################################################################
 
-TROIS MODES, choisis au lancement. La simulation est le defaut, et aucune
+QUATRE MODES, choisis au lancement. La simulation est le defaut, et aucune
 transaction n'existe avant un choix explicite.
 
   1. Simuler               lecture seule, CSV du avant/apres
-  2. Renommer les familles ecriture, en DEUX PASSES
-  3. Noms de type          ecriture, en une passe
+  2. ESSAI sur UN volume   ecriture, une seule famille, puis arret
+  3. Renommer les familles ecriture, en DEUX PASSES
+  4. Noms de type          ecriture, en une passe
+
+L'ESSAI SUR UN SEUL VOLUME existe pour une question que la simulation ne
+peut pas poser : elle ne teste que la LECTURE. Un nom de famille releve des
+standards de projet, pas des elements ; en travail partage, le modifier
+demande un emprunt exclusif que Revit peut refuser [hypothese, non mesuree
+au 2026-09-24]. L'essai ecrit pour de vrai, sur un volume choisi parmi ceux
+dont le nom vise est libre, et rapporte ce que Revit rend - sans repli
+invente. Un refus serait un fait mesure a porter en fiche : une contrainte
+structurante pour tout outil Keovia qui renomme des familles sur ACC.
+
+MAQUETTE CENTRALE. Ce script ne refuse plus d'ecrire sur une maquette
+collaborative non detachee. Il demande une confirmation qui NOMME le
+fichier, ANNONCE le nombre d'elements concernes et fait cocher que l'on est
+seul dessus (ACT-052 (2)). Sur copie detachee, rien ne change. La regle vit
+dans lib\\bimflow_maquette.py, une seule fois pour les trois boutons.
 
 POURQUOI DEUX PASSES AU RENOMMAGE. Les numeros redistribuent les noms : un
 nom final peut etre deja porte par une AUTRE famille au moment ou on veut
@@ -79,8 +95,10 @@ NOM_TYPE_VOULU = "Volume Ivion"
 # mesure que cela ameliore l'ordre, et changer le tri change tous les numeros.
 NORD_LOCAL = {}
 
-# Une maquette collaborative doit etre traitee sur une COPIE DETACHEE (R17).
-AUTORISER_NON_DETACHE = False
+# Le drapeau AUTORISER_NON_DETACHE a disparu le 2026-09-24 : il n'existait
+# que pour contourner un refus qui n'existe plus. Une maquette centrale se
+# traite desormais par une confirmation, pas par une constante en tete de
+# fichier que personne ne pense a remettre a False.
 
 # Typos relevees a la main sur la maquette au 2026-09-24. Ces quatre noms ne
 # se decoupent pas : la table les traduit, elle ne les devine pas. Elle
@@ -108,13 +126,17 @@ try:
     from bimflow_noms import (extraire, ref_batiment, nom_de_famille,
                               incoherence_etage_nature, ETAGES_CONNUS)
     from bimflow_volumes import classer
+    from bimflow_maquette import (etat as etat_maquette, mot_de_letat,
+                                  proprietaire, confirmer_centrale)
 except ImportError:
     from pyrevit import forms as _formulaires
     _formulaires.alert(
-        u"Modules partages bimflow_noms / bimflow_volumes introuvables.\n\n"
+        u"Modules partages bimflow_noms / bimflow_volumes / bimflow_maquette "
+        u"introuvables.\n\n"
         u"Ils doivent se trouver dans bimflow.extension\\lib\\. Sans eux, ni "
-        u"le decoupage des noms ni le classement spatial ne sont "
-        u"disponibles, et ce script ne s'execute pas.",
+        u"le decoupage des noms, ni le classement spatial, ni la porte "
+        u"d'entree des ecritures ne sont disponibles, et ce script ne "
+        u"s'execute pas.",
         exitscript=True,
     )
 
@@ -180,20 +202,15 @@ def lien_de(eid):
 if doc.IsFamilyDocument:
     forms.alert(u"Document famille : rien a renommer.", exitscript=True)
 
-collaboratif = bool(doc.IsWorkshared)
-detache = None
-try:
-    detache = bool(doc.IsDetached)
-except Exception:
-    detache = None
-
 # Rappel : IsWorkshared reste True apres un detachement conservant les
-# sous-projets. C'est IsDetached qui tranche, et lui seul.
-NON_DETACHEE = collaboratif and detache is not True
+# sous-projets. C'est IsDetached qui tranche, et lui seul - bimflow_maquette
+# est le seul endroit ou cette regle est ecrite.
+collaboratif, detache, CENTRALE = etat_maquette(doc)
 
 MODES = [u"1 - Simuler (lecture seule, aucune ecriture)",
-         u"2 - Renommer les familles (ECRIT dans la maquette)",
-         u"3 - Noms de type -> \"{0}\" (ECRIT)".format(NOM_TYPE_VOULU)]
+         u"2 - ESSAI : renommer UN SEUL volume (ECRIT)",
+         u"3 - Renommer les familles (ECRIT dans la maquette)",
+         u"4 - Noms de type -> \"{0}\" (ECRIT)".format(NOM_TYPE_VOULU)]
 
 # forms.alert n'affiche QUE QUATRE options : il s'appuie sur le TaskDialog de
 # Revit, dont TaskDialogCommandLinkId s'arrete a CommandLink4, et pyRevit
@@ -220,18 +237,15 @@ if not mode:
     script.exit()
 
 ECRITURE = not mode.startswith(u"1")
-MODE_TYPES = mode.startswith(u"3")
+MODE_ESSAI = mode.startswith(u"2")
+MODE_TYPES = mode.startswith(u"4")
 
-if ECRITURE and NON_DETACHEE and not AUTORISER_NON_DETACHE:
-    forms.alert(
-        u"Maquette collaborative, et ce n'est pas une copie detachee.\n\n"
-        u"Ce script ECRIT dans le modele : il ne tourne que sur une copie "
-        u"detachee (R17). Rappel : IsWorkshared reste vrai apres un "
-        u"detachement conservant les sous-projets - c'est IsDetached qui "
-        u"tranche.\n\n"
-        u"Rouvrir avec \"Detacher du fichier central\", puis relancer.",
-        exitscript=True,
-    )
+out.print_md(u"**Maquette** : `{0}` - {1}".format(
+    doc.Title, mot_de_letat(collaboratif, detache)))
+
+# La confirmation « maquette centrale » ne se pose PAS ici : elle annonce le
+# nombre d'elements concernes, et ce nombre n'existe qu'apres la lecture.
+# Elle est au bloc 3 bis, juste avant la premiere transaction.
 
 # --------------------------------------------------------------------------
 # 1. Lecture et classement - LECTURE SEULE, quel que soit le mode
@@ -482,10 +496,52 @@ if not ECRITURE:
     script.exit()
 
 # --------------------------------------------------------------------------
-# 4. Refus d'ecrire tant qu'un cas n'est pas tranche
+# 3 bis. Maquette centrale : la porte, pas le mur
+#
+# Jusqu'au 2026-09-24, ce bloc etait un REFUS. Il laisse passer desormais,
+# apres une confirmation qui nomme le fichier et annonce le nombre d'elements
+# concernes - d'ou sa place ici, apres la lecture : avant, ce nombre n'existe
+# pas. Sur copie detachee, rien de tout cela ne s'affiche : le comportement
+# des trois boutons y est inchange.
 # --------------------------------------------------------------------------
 
-if BLOQUANT:
+if CENTRALE:
+    if MODE_ESSAI:
+        _operation = u"ESSAI - renommer la famille d'UN SEUL volume"
+        _nb, _quoi = 1, u"famille de volume"
+        _consequence = (u"L'essai s'arrete apres ce volume, quoi qu'il arrive, "
+                        u"et rapporte exactement ce que Revit rend.")
+    elif MODE_TYPES:
+        _operation = u"Renommer les NOMS DE TYPE en \"{0}\"".format(NOM_TYPE_VOULU)
+        _nb, _quoi = len(ordonnes), u"volume(s) vises"
+        _consequence = (u"Ceux qui portent deja ce nom de type seront ignores ; "
+                        u"le compte exact est dans la boite suivante. Une seule "
+                        u"transaction : un echec annule tout le lot.")
+    else:
+        _operation = u"Renommer les FAMILLES au motif VOL_nnn"
+        _nb, _quoi = len(ordonnes), u"famille(s) de volume"
+        _consequence = (u"Deux passes dans un meme groupe de transactions : "
+                        u"un echec annule les deux.")
+
+    if not confirmer_centrale(doc, _operation, _nb, _quoi, _consequence):
+        out.print_md(
+            u"---\n**Annule.** Rien n'a ete ecrit.\n\n"
+            u"> La confirmation « maquette centrale » demande un Oui **et** la "
+            u"case « je suis seul sur cette maquette ». Les deux, parce que "
+            u"c'est le modele de production."
+        )
+        script.exit()
+
+# --------------------------------------------------------------------------
+# 4. Refus d'ecrire tant qu'un cas n'est pas tranche
+#
+# L'ESSAI N'EST PAS CONCERNE : il ne traite qu'un volume, choisi parmi ceux
+# qui sont propres, et sa question n'est pas « le lot est-il pret ? » mais
+# « Revit me laisse-t-il ecrire ici ? ». Repondre a la seconde n'exige pas
+# d'avoir resolu la premiere.
+# --------------------------------------------------------------------------
+
+if BLOQUANT and not MODE_ESSAI:
     out.print_md(
         u"---\n# ECRITURE REFUSEE\n"
         u"**{0} non resolu(s), {1} collision(s), {2} famille(s) a deux noms.** "
@@ -496,6 +552,204 @@ if BLOQUANT:
             len(non_resolus), len(collisions), len(familles_multiples))
     )
     script.exit()
+
+# --------------------------------------------------------------------------
+# 4 bis. ESSAI SUR UN SEUL VOLUME
+#
+# A QUOI IL SERT. Un nom de famille releve des STANDARDS DE PROJET, pas des
+# elements. En travail partage, modifier un standard demande un emprunt
+# EXCLUSIF, que Revit peut refuser si un autre utilisateur le detient
+# [hypothese, non mesuree au 2026-09-24]. La simulation ne le detectera
+# jamais : elle ne teste que la lecture. Cet essai ecrit pour de vrai, sur UN
+# volume, et rapporte ce que Revit rend - meme raisonnement que l'essai sur
+# trois types, qui a servi.
+#
+# CE QU'IL NE FAIT PAS. Aucun repli invente. Si Revit refuse, l'erreur exacte
+# est imprimee telle que l'API la rend, et c'est un FAIT MESURE a porter en
+# fiche : ce serait une contrainte structurante pour tout outil Keovia qui
+# renomme des familles sur une maquette ACC.
+#
+# LE CHOIX DU VOLUME. Le premier de l'ordre de classement dont le nom doit
+# changer ET dont le nom vise n'est porte par aucune famille. Cette seconde
+# condition evite d'echouer sur un doublon - ce serait un echec vrai, mais
+# pas celui qu'on mesure ici. Le volume traite porte donc son nom DEFINITIF :
+# rien a nettoyer, rien a defaire.
+# --------------------------------------------------------------------------
+
+if MODE_ESSAI:
+
+    noms_de_familles = set()
+    for _fid_ex in list(FilteredElementCollector(doc).OfClass(Family)
+                        .ToElementIds()):
+        _f_ex = doc.GetElement(_fid_ex)
+        if _f_ex is None:
+            continue
+        try:
+            noms_de_familles.add(_f_ex.Name)
+        except Exception:
+            continue
+
+    candidat = None
+    ecartes = []
+    for v in ordonnes:
+        if v["nom"] == v["nouveau"]:
+            ecartes.append((v, u"porte deja son nom final"))
+            continue
+        if v["nouveau"] in noms_de_familles:
+            ecartes.append((v, u"une famille porte deja `{0}`".format(v["nouveau"])))
+            continue
+        candidat = v
+        break
+
+    out.print_md(u"---")
+    out.print_md(u"# ESSAI sur un seul volume")
+
+    if BLOQUANT:
+        out.print_md(
+            u"> **Le lot complet serait refuse en l'etat** ({0} non resolu(s), "
+            u"{1} collision(s), {2} famille(s) a deux noms). L'essai passe "
+            u"quand meme : il ne demande pas si le lot est pret, il demande si "
+            u"Revit laisse ecrire ici.".format(
+                len(non_resolus), len(collisions), len(familles_multiples))
+        )
+
+    if candidat is None:
+        out.print_md(
+            u"## Aucun volume ne convient - rien n'a ete ecrit\n"
+            u"Sur {0} volume(s) lus, aucun ne remplit les deux conditions : "
+            u"son nom doit changer, et le nom vise doit etre libre.".format(
+                len(ordonnes))
+        )
+        for v, motif in ecartes[:10]:
+            out.print_md(u"- {0} `{1}` : {2}".format(
+                lien_de(v["eid"]), texte(v["nom"]), motif))
+        if len(ecartes) > 10:
+            out.print_md(u"- *... et {0} autre(s).*".format(len(ecartes) - 10))
+        out.print_md(
+            u"> Si tous portent deja leur nom final, l'essai n'a plus d'objet : "
+            u"passer au mode 3. Sinon, trancher les doublons dans Revit."
+        )
+        script.exit()   # rien n'a ete ecrit : cette sortie est legitime
+
+    statut, qui = proprietaire(doc, element_famille[candidat["fid"]])
+    out.print_md(
+        u"**Volume choisi** : {0}\n\n"
+        u"| | |\n|---|---|\n"
+        u"| nom actuel | `{1}` |\n"
+        u"| nom vise | `{2}` |\n"
+        u"| zone | `{3}` |\n"
+        u"| reservation | {4} |\n"
+        u"| proprietaire | {5} |\n".format(
+            lien_de(candidat["eid"]), texte(candidat["nom"]),
+            texte(candidat["nouveau"]), texte(candidat["zone"]),
+            texte(statut) or u"*illisible*",
+            texte(qui) or u"*personne, ou illisible*")
+    )
+    out.print_md(
+        u"> La reservation lue ci-dessus porte sur l'ELEMENT famille. Elle ne "
+        u"dit pas ce que Revit fera d'un standard de projet : c'est justement "
+        u"ce que l'ecriture va montrer."
+    )
+
+    dialogue = TaskDialog(u"bimflow - Essai sur un volume")
+    dialogue.MainInstruction = u"Renommer UNE famille, pour voir ?"
+    dialogue.MainContent = (
+        u"Maquette : {0}\n\n"
+        u"`{1}`\n   ->   `{2}`\n\n"
+        u"Une seule famille, une seule transaction. Le script s'arrete "
+        u"ensuite, quel que soit le resultat.\n\n"
+        u"Si Revit refuse, tout est annule et l'erreur exacte est rapportee - "
+        u"aucun repli n'est tente.".format(
+            doc.Title, texte(candidat["nom"]), texte(candidat["nouveau"]))
+    )
+    dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |
+                              TaskDialogCommonButtons.No)
+    dialogue.DefaultButton = TaskDialogResult.No
+    if dialogue.Show() != TaskDialogResult.Yes:
+        out.print_md(u"**Annule par l'utilisateur.** Rien n'a ete ecrit.")
+        script.exit()   # rien n'a ete ecrit : cette sortie est legitime
+
+    echec = None
+    etat_commit = None
+    transaction = Transaction(doc, u"bimflow - essai de renommage")
+    if transaction.Start() != TransactionStatus.Started:
+        # Revit refuse d'OUVRIR la transaction : c'est deja un resultat.
+        out.print_md(
+            u"## REVIT A REFUSE D'OUVRIR LA TRANSACTION\n"
+            u"Rien n'a ete ecrit. Sur une maquette centrale, c'est le signe "
+            u"que le document n'est pas modifiable depuis cette commande - "
+            u"maquette ouverte en lecture seule, ou transaction deja ouverte "
+            u"ailleurs.\n\n"
+            u"**Fait mesure**, a porter en fiche avec la date et le nom de la "
+            u"maquette."
+        )
+        script.exit()   # rien n'a ete ecrit : cette sortie est legitime
+
+    try:
+        famille = doc.GetElement(element_famille[candidat["fid"]])
+        if famille is None:
+            raise Exception(u"famille {0} introuvable".format(candidat["fid"]))
+        famille.Name = candidat["nouveau"]
+    except Exception as err:
+        echec = err
+
+    if echec is None:
+        etat_commit = transaction.Commit()
+        if etat_commit != TransactionStatus.Committed:
+            echec = u"Commit refuse par Revit (etat : {0})".format(etat_commit)
+    else:
+        transaction.RollBack()
+
+    out.print_md(u"## Resultat")
+
+    if echec is not None:
+        out.print_md(
+            u"### REVIT A REFUSE - tout a ete annule\n"
+            u"Erreur exacte, telle que l'API l'a rendue :\n\n"
+            u"```\n{0}\n{1}\n```\n\n"
+            u"**Ce qu'il faut en retenir, et le porter en fiche comme FAIT "
+            u"MESURE** (avec la date, le nom de la maquette et l'etat de "
+            u"reservation ci-dessus) : renommer une famille in situ sur une "
+            u"maquette centrale echoue dans ces conditions. Ce serait une "
+            u"contrainte structurante pour tout outil Keovia qui renomme des "
+            u"familles sur une maquette ACC - et la reponse serait alors de "
+            u"travailler sur copie detachee, ou d'obtenir l'emprunt exclusif "
+            u"avant de lancer.\n\n"
+            u"Aucun repli n'est tente. La maquette est dans l'etat ou elle "
+            u"etait avant le clic.".format(
+                type(echec).__name__ if isinstance(echec, Exception) else u"",
+                echec)
+        )
+    else:
+        relu = u"(illisible)"
+        try:
+            famille = doc.GetElement(element_famille[candidat["fid"]])
+            relu = famille.Name if famille is not None else u"(introuvable)"
+        except Exception as err:
+            relu = u"(illisible : {0})".format(err)
+
+        out.print_md(
+            u"### Revit a accepte\n"
+            u"La famille porte maintenant `{0}` a la relecture "
+            u"{1}.\n\n"
+            u"**Ce que cela prouve, et rien de plus** : l'API a pu ecrire un "
+            u"nom de famille sur cette maquette, a cet instant, avec les "
+            u"droits de cet utilisateur. Cela ne dit pas que le lot de {2} "
+            u"passera - un autre utilisateur peut detenir un autre standard.\n\n"
+            u"**Ce que cela ne prouve pas encore** : que l'ecriture TIENT. "
+            u"Seule une execution SEPAREE d'**Audit volumes** le dira - c'est "
+            u"la lecon du 2026-09-24, et elle a coute une journee.".format(
+                texte(relu),
+                u"(conforme)" if relu == candidat["nouveau"] else u"**(DIFFERENT du nom vise)**",
+                len(ordonnes))
+        )
+        out.print_md(
+            u"> **Suite.** Sauvegarder, synchroniser, relancer **Audit "
+            u"volumes**. Si le nom a tenu, le mode 3 peut traiter le lot."
+        )
+    # PAS de script.exit() ici : une ecriture a eu lieu, et sortir ferait
+    # rendre Cancelled a la commande - Revit annulerait ce qu'on vient de
+    # commiter. C'est exactement le defaut du 2026-09-24.
 
 # --------------------------------------------------------------------------
 # --------------------------------------------------------------------------
@@ -510,7 +764,7 @@ if BLOQUANT:
 # refus, annulation, lot vide : la, une annulation par Revit n'enleve rien.
 # --------------------------------------------------------------------------
 
-if not MODE_TYPES:
+if not MODE_TYPES and not MODE_ESSAI:
 
     a_renommer = {}     # fid -> (avant, apres)
     for v in ordonnes:
@@ -573,8 +827,8 @@ if not MODE_TYPES:
         u"son nom final - sans quoi un nom deja porte par une autre famille "
         u"ferait echouer le lot. Les deux passes sont annulees ensemble si "
         u"l'une echoue.\n\n"
-        u"Script NON EPROUVE. Verifier ensuite dans l'arborescence du projet "
-        u"et avec le bouton Audit volumes.".format(
+        u"Verifier ensuite avec le bouton Audit volumes, dans une execution "
+        u"SEPAREE : c'est elle qui prouve que l'ecriture a tenu.".format(
             doc.Title, doc.PathName or u"(jamais enregistree)", len(inchanges))
     )
     dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |
@@ -680,10 +934,10 @@ if not MODE_TYPES:
 # homonymes dans 202 familles in situ distinctes, et les noms tiennent a
 # travers sauvegardes, changements de fenetre et executions successives.
 #
-# Les modes 1 et 2 n'entrent pas ici. Avant le 2026-09-24, ils en sortaient
-# par script.exit() - ce qui faisait rendre Cancelled a la commande et
-# annulait leurs ecritures. La porte est donc fermee par un test, jamais par
-# une sortie.
+# Les modes 1, 2 et 3 n'entrent pas ici. Avant le 2026-09-24, ils en
+# sortaient par script.exit() - ce qui faisait rendre Cancelled a la commande
+# et annulait leurs ecritures. La porte est donc fermee par un test, jamais
+# par une sortie.
 if MODE_TYPES:
 
     cibles = ordonnes
