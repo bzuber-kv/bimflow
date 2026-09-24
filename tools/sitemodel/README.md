@@ -203,6 +203,34 @@ d'intérieurs disjoints (C1), pile ordonnée sans chevauchement vertical (C2),
 les contrôle **avant** envoi, parce que l'import Ivion teste la conformité
 mais ne diagnostique pas (§5.6).
 
+## Une règle, payée deux fois
+
+> **Un contrôle de recouvrement entre tranches porte sur les trois
+> dimensions — ou déclare explicitement l'invariant d'emprise dont il
+> dépend.**
+
+Tester le seul recouvrement en **Z** n'est valide que **sous la garantie
+R1** : si toutes les tranches d'une zone partagent leur contour, alors deux
+cotes sécantes impliquent bien un recouvrement 3D. En amont de R1, cette
+garantie n'existe pas — et deux volumes **côte à côte**, qui ne se touchent
+pas, sont déclarés en faute.
+
+C'est arrivé le 2026-09-24 sur `SC_Dp_Ep_4p_5p` : **3 620 mm** de
+recouvrement Z annoncés, **0,000 m²** d'intersection en plan. Deux échanges
+perdus, et une maquette saine à deux doigts d'être redessinée.
+
+Deux endroits portaient ce défaut, et le second était le plus grave parce
+qu'il **modifie** une cote :
+
+| Où | Ce qui se passait | Ce qui se passe |
+|---|---|---|
+| rapport des `FLOOR` homonymes | « C6 ECHEC » sur un recouvrement Z seul | intersection des emprises **et** recouvrement Z ; l'étiquette C6 n'est portée que si les deux dépassent la tolérance |
+| arbitrage des séparations inclinées (R‑S) | rognait la tranche basse — l'`EXTERIEUR` perdait 3 620 mm de hauteur, en silence | n'arbitre que si les emprises se recoupent ; sinon la paire est **laissée intacte** et listée comme « côtes sécantes, emprises disjointes » |
+
+Le rapport imprime désormais, pour chaque cas, **l'aire d'intersection des
+emprises et la hauteur de recouvrement Z** : le diagnostic se relit sans
+avoir à y revenir.
+
 ## Repère et géoréférencement
 
 Par défaut, **aucune transformation** : la sortie est en mètres dans le

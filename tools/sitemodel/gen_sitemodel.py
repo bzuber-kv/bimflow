@@ -219,11 +219,32 @@ if SCS and THETA is None:
              "porte emplacement_partage.angle_nord_vrai_rad.")
 
 # ------------------------------------- 2. arbitrage des separations inclinees
+# MEME INVARIANT QUE LE CONTROLE DES FLOOR HOMONYMES, PLUS BAS, ET IL EST
+# PLUS GRAVE ICI : cet arbitrage MODIFIE une cote. Deux tranches d'une meme
+# zone qui se croisent en Z ne sont une separation non horizontale QUE si
+# leurs emprises se recouvrent. Cote a cote, elles ne se separent pas, elles
+# se longent - et rogner l'une de plusieurs metres serait une mutilation
+# silencieuse. Mesure du 2026-09-24, SC_Dp_Ep_4p_5p : sans ce test en plan,
+# le volume EXTERIEUR perdait 3620 mm de hauteur, soit toute sa tranche
+# haute, pour un recouvrement qui n'existait pas.
+TOL_PLAN_M2 = 1e-6
+
+
+def _emprise_m(t):
+    return Polygon([(x / MM, y / MM) for x, y in t["coords"]])
+
+
 retraiter = []
+cote_a_cote = []
 for zn, tr in zones.items():
     tr.sort(key=lambda t: t["zmin"])
     for a, b in zip(tr, tr[1:]):
         if a["zmax"] > b["zmin"] + 1e-6:
+            if _emprise_m(a).intersection(_emprise_m(b)).area <= TOL_PLAN_M2:
+                # cotes secantes, emprises disjointes : on ne touche a rien
+                cote_a_cote.append((zn, a["etage"], b["etage"],
+                                    a["zmax"] - b["zmin"]))
+                continue
             a["zmax_brut"] = a["zmax"]
             a["zmax"] = b["zmin"]
             a["flag"] = b["flag"] = "separation_non_horizontale"
@@ -538,25 +559,88 @@ if doublons_etage:
           % ("Les seconds sont suffixes \"%s\" (--suffixer-doublons)."
              % SUFFIXE_DOUBLON if SUFFIXER_DOUBLONS else
              "Les noms restent IDENTIQUES ; --suffixer-doublons les distingue."))
+    # POURQUOI CE BLOC TESTE LES TROIS DIMENSIONS, ET PAS SEULEMENT Z.
+    # Il s'execute sur des tranches qui n'ont PAS encore passe R1. Or tester
+    # Z seul n'est valide que SOUS la garantie R1 - meme contour pour toute
+    # une zone : la, deux tranches qui se recouvrent en Z se recouvrent
+    # forcement en 3D, puisqu'elles ont la meme emprise. En amont de R1 cette
+    # garantie n'existe pas, et deux volumes COTE A COTE, qui ne se touchent
+    # pas, ressortaient en "C6 ECHEC". C'est arrive sur SC_Dp_Ep_4p_5p le
+    # 2026-09-24 : 3620 mm de recouvrement Z annonces, 0,000 m2
+    # d'intersection en plan. Deux echanges perdus, et une maquette saine a
+    # deux doigts d'etre redessinee.
+    # REGLE : un controle de recouvrement porte sur les TROIS dimensions, ou
+    # declare explicitement l'invariant d'emprise dont il depend.
+    TOL_AIRE_M2 = 1e-6
+    TOL_Z_M = 1e-6
+
+    def emprise(t):
+        return Polygon([(x / MM, y / MM) for x, y in t["coords"]])
+
     en_echec = 0
     for (zn, etage), tranches in sorted(doublons_etage.items()):
-        cotes = []
-        recouvre = 0.0
+        cotes = "  +  ".join(["%s [%.3f, %.3f]" % (t.get("nature", "?"),
+                                                   m(t["zmin"]), m(t["zmax"]))
+                              for t in tranches])
+        pire_aire, pire_dz = 0.0, 0.0
         for a, b in zip(tranches, tranches[1:]):
-            r = min(a["zmax"], b["zmax"]) - max(a["zmin"], b["zmin"])
-            recouvre = max(recouvre, r)
-        for t in tranches:
-            cotes.append("%s [%.3f, %.3f]" % (t.get("nature", "?"),
-                                              m(t["zmin"]), m(t["zmax"])))
-        verdict = "OK" if recouvre <= 1e-6 else "C6 ECHEC"
-        if recouvre > 1e-6:
+            dz = m(min(a["zmax"], b["zmax"]) - max(a["zmin"], b["zmin"]))
+            aire = emprise(a).intersection(emprise(b)).area
+            pire_aire = max(pire_aire, aire)
+            pire_dz = max(pire_dz, dz)
+
+        # LES DEUX conditions, jamais une seule.
+        if pire_aire > TOL_AIRE_M2 and pire_dz > TOL_Z_M:
+            verdict = "C6 ECHEC - recouvrement 3D"
             en_echec += 1
-        print("  %-24s %-10s %-52s recouvrement %.3f m  %s"
-              % (zn, etage, "  +  ".join(cotes), m(recouvre), verdict))
+        elif pire_dz > TOL_Z_M:
+            verdict = "recouvrement Z SEUL, cote a cote en plan - sans effet"
+        else:
+            verdict = "OK - pile contigue"
+
+        print("  %-22s %-9s %s" % (zn, etage, cotes))
+        print("  %-22s %-9s intersection des emprises %9.3f m2  |  "
+              "recouvrement Z %7.3f m  ->  %s"
+              % ("", "", pire_aire, pire_dz, verdict))
     if en_echec:
-        print("\n  %d couple(s) se recouvrent en 3D : C6 les refusera, et "
-              "l'import Ivion\n  fait tomber le LOT ENTIER sur ce motif. A "
-              "reprendre dans Revit." % en_echec)
+        print("\n  %d couple(s) se recouvrent VRAIMENT en 3D - emprises "
+              "secantes ET cotes secantes.\n  C6 les refusera, et l'import "
+              "Ivion fait tomber le LOT ENTIER sur ce motif.\n  A reprendre "
+              "dans Revit." % en_echec)
+    else:
+        print("\n  Aucun recouvrement 3D : les emprises se superposent mais "
+              "les cotes s'enchainent,\n  ou les cotes se croisent mais les "
+              "emprises sont disjointes.")
+    print()
+
+    # La liste NOMMEE des BUILDING concernes : c'est ce qu'il faut ouvrir en
+    # sandbox pour voir ce qu'Ivion fait de deux FLOOR de meme nom.
+    batiment_de_zone = {}
+    for _noms, _emprise, _sig in groupes:
+        _nom_bat = _noms[0] if len(_noms) == 1 else "+".join(_noms)
+        for _zn in _noms:
+            batiment_de_zone[_zn] = _nom_bat
+    par_batiment = {}
+    for (zn, etage), tranches in doublons_etage.items():
+        par_batiment.setdefault(batiment_de_zone.get(zn, "(hors BUILDING)"),
+                                []).append((zn, etage, tranches))
+
+    print("-" * 72)
+    print("A OUVRIR EN SANDBOX : %d BUILDING portant des FLOOR homonymes"
+          % len(par_batiment))
+    print("-" * 72)
+    for nom_bat in sorted(par_batiment):
+        print("  BUILDING %s" % nom_bat)
+        for zn, etage, tranches in sorted(par_batiment[nom_bat]):
+            for t in sorted(tranches, key=lambda t: t["zmin"]):
+                nom_affiche = etage
+                if SUFFIXER_DOUBLONS:
+                    rang = doublons_etage[(zn, etage)].index(t)
+                    if rang > 0:
+                        nom_affiche = etage + SUFFIXE_DOUBLON * rang
+                print("      FLOOR %-18s %-10s z [%8.3f , %8.3f]  zone %s"
+                      % (nom_affiche, t.get("nature", "?"),
+                         m(t["zmin"]), m(t["zmax"]), zn))
     print()
 
 print("Fichier : %s (%d octets)" % (DST.name, DST.stat().st_size))
@@ -564,3 +648,12 @@ print("Separations non horizontales arbitrees au niveau le plus bas : %d"
       % len(retraiter))
 for zn, ea, eb, d in retraiter:
     print("    %-18s %s | %s  -> %.0f mm bascules vers le haut" % (zn, ea, eb, d))
+
+if cote_a_cote:
+    print()
+    print("Tranches aux cotes secantes mais aux emprises DISJOINTES : %d - "
+          "aucune n'a ete\nmodifiee. Elles se longent, elles ne se separent "
+          "pas." % len(cote_a_cote))
+    for zn, ea, eb, d in cote_a_cote:
+        print("    %-18s %s | %s  -> %.0f mm de cotes communes, 0 m2 en plan"
+              % (zn, ea, eb, d))
