@@ -1,0 +1,12 @@
+title: |-
+  Sonde noms
+  famille
+tooltip: >-
+  Diagnostic, LECTURE SEULE — aucune transaction, aucun fichier. Imprime côte à
+  côte les cinq porteurs possibles du nom d'un volume in situ : l'élément
+  Family, la propriété FamilyName du type, les paramètres SYMBOL_FAMILY_NAME et
+  ALL_MODEL_FAMILY_NAME, et les paramètres Famille / Famille et type de
+  l'instance. Plus la liste de toutes les familles de catégorie Volumes. À
+  lancer deux fois : avant et juste après un mode 2 de Renommer volumes.
+author: Keovia Solutions inc.
+highlight: new

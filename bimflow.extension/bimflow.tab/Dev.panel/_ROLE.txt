@@ -25,7 +25,15 @@ Y est, et l'ordre d'emploi est celui-la :
      11 zones, trois batiments. Une execution ne fait pas une garantie ;
      il sort d'ici quand il aura servi plusieurs fois.
   3. MAJ params volumes (ECRITURE) - recopie le nom dans les parametres.
-     Jamais execute.
+     Jamais execute avec succes : il refuse tant que les noms ne sont pas au
+     motif VOL_nnn, et c'est le comportement voulu.
+
+  + Sonde noms famille (LECTURE SEULE) - diagnostic. Elle repond a une seule
+    question, et c'est celle qui bloque au 2026-09-24 : ou vit le nom qu'un
+    volume in situ affiche ? Le renommage des familles s'inscrit quelque
+    part, l'arborescence le montre, puis tout revient a l'ancien nom. Cinq
+    porteurs possibles, elle les imprime cote a cote. A lancer AVANT et APRES
+    un mode 2 : c'est la comparaison qui repond.
 
 On renomme AVANT d'auditer : un audit passe sur l'ancien motif decrirait un
 etat deja perime. Et le renommage est un bouton separe parce que le nom est
