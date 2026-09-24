@@ -196,13 +196,27 @@ MODES = [u"1 - Simuler (lecture seule, aucune ecriture)",
          u"5 - DIAGNOSTIC : essai instrumente sur {0} familles (ECRIT)".format(
              TAILLE_ESSAI)]
 
-mode = forms.alert(
-    u"Volumes de zone - que faire ?\n\n"
-    u"La simulation n'ecrit rien et produit le CSV du avant/apres. "
-    u"Les trois autres modes ecrivent dans la maquette.",
-    title=u"bimflow - Renommer les volumes",
-    options=MODES,
-)
+# forms.alert n'affiche QUE QUATRE options : il s'appuie sur le TaskDialog de
+# Revit, dont TaskDialogCommandLinkId s'arrete a CommandLink4, et pyRevit
+# jette les suivantes SANS RIEN DIRE (pyrevit\forms\_ipy.py : "if idx <
+# max_clinks"). Le mode 5 avait disparu du dialogue pour cette raison, et
+# rien dans l'ecran ne le signalait. CommandSwitchWindow, elle, n'a pas
+# cette limite.
+mode = None
+try:
+    mode = forms.CommandSwitchWindow.show(
+        MODES,
+        message=u"Volumes de zone - que faire ?",
+    )
+except Exception:
+    # repli : le dialogue Revit, tronque a quatre - on le dit.
+    mode = forms.alert(
+        u"Volumes de zone - que faire ?\n\n"
+        u"ATTENTION : ce dialogue de repli n'affiche que les QUATRE premiers "
+        u"modes.",
+        title=u"bimflow - Renommer les volumes",
+        options=MODES[:4],
+    )
 if not mode:
     script.exit()
 
