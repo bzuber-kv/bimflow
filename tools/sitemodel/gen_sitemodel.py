@@ -132,11 +132,22 @@ donnees = json.loads(SRC.read_text(encoding="utf-8"))
 zones = donnees["zones"]
 
 # FILTRE D'EXPORT (arbitrage Bruno du 2026-09-22). Ne part vers Ivion que ce
-# qui est un espace de visite : ETAGE, TOITURE, ENTRE_TOIT, EXTERIEUR.
+# qui est un espace de visite : ETAGE, TOITURE, ENTRETOIT, EXTERIEUR.
 # ENVELOPPE est exclue - un volume d'enveloppe LOD100 n'est ni un etage ni
 # une toiture. Une tranche SANS nature n'est pas exportee non plus : une
 # nature ne se devine pas.
-NATURES_EXPORTEES = ("ETAGE", "TOITURE", "ENTRE_TOIT", "EXTERIEUR")
+NATURES_EXPORTEES = ("ETAGE", "TOITURE", "ENTRETOIT", "EXTERIEUR")
+
+# Deux tranches de meme (REF_Zone, REF_Etage) dans un meme BUILDING donnent
+# deux FLOOR de MEME name. Le comportement d'Ivion sur ce point n'est pas
+# connu : C7 dit que des etages de meme nom s'affichent ENSEMBLE, ce qui est
+# peut-etre exactement ce qu'on veut d'un entretoit et de sa toiture - ou
+# pas. Par defaut on genere le nom identique ; --suffixer-doublons rend le
+# second "<REF_Etage>_sup". Dans les deux cas la liste des couples est
+# imprimee en fin de rapport : c'est la qu'il faudra regarder si l'import
+# refuse.
+SUFFIXER_DOUBLONS = "--suffixer-doublons" in sys.argv
+SUFFIXE_DOUBLON = "_sup"
 
 ecartes = {}
 zones_filtrees = {}
@@ -300,9 +311,9 @@ def attrs_floor(zn, t):
     return a
 
 
-def floor(zn, t, herite):
+def floor(zn, t, herite, nom=None):
     return {"type": "FLOOR",
-            "name": t["etage"],
+            "name": nom or t["etage"],
             "scs_polygon": gj(t["coords"]),
             "scs_z_min": z(t["zmin"]),
             "scs_z_max": z(t["zmax"]),
@@ -347,6 +358,18 @@ for sig, noms in par_sig.items():
 groupes.sort(key=lambda g: g[0][0])
 
 # --------------------------------------------------------- 5. les entites
+# Couples (zone, etage) portes par PLUSIEURS tranches : ils donneront deux
+# FLOOR de meme name dans le meme BUILDING. Releves ici, verifies en C6 plus
+# bas, et toujours listes en fin de rapport.
+doublons_etage = {}
+for _zn, _tr in zones.items():
+    _vus = {}
+    for _t in _tr:
+        _vus.setdefault(_t["etage"], []).append(_t)
+    for _e, _liste in _vus.items():
+        if len(_liste) > 1:
+            doublons_etage[(_zn, _e)] = sorted(_liste, key=lambda t: t["zmin"])
+
 doc = []
 for noms, emprise, sig in groupes:
     nom_bat = noms[0] if len(noms) == 1 else "+".join(noms)
@@ -354,7 +377,12 @@ for noms, emprise, sig in groupes:
     for zn in noms:
         for t in zones[zn]:
             herite = polys[zn].equals(emprise)
-            ch.append(floor(zn, t, herite))
+            nom_etage = None
+            if SUFFIXER_DOUBLONS and (zn, t["etage"]) in doublons_etage:
+                rang = doublons_etage[(zn, t["etage"])].index(t)
+                if rang > 0:
+                    nom_etage = t["etage"] + SUFFIXE_DOUBLON * rang
+            ch.append(floor(zn, t, herite, nom_etage))
     ch.sort(key=lambda c: (c["scs_z_min"], c["attributes"]["keovia_ref_zone"]))
     doc.append({
         "type": "BUILDING",
@@ -497,6 +525,40 @@ def valider(nom, doc):
 
 
 valider(BATIMENT, doc)
+
+# ------------------------- 4 bis. les FLOOR homonymes, et leur controle C6
+if doublons_etage:
+    print("=" * 72)
+    print("FLOOR DE MEME NOM dans un meme BUILDING : %d couple(s)"
+          % len(doublons_etage))
+    print("=" * 72)
+    print("Comportement d'Ivion INCONNU sur ce point. C7 dit que des etages "
+          "de meme nom\ns'affichent ENSEMBLE - ce qui est peut-etre voulu "
+          "pour un entretoit et sa\ntoiture. %s\n"
+          % ("Les seconds sont suffixes \"%s\" (--suffixer-doublons)."
+             % SUFFIXE_DOUBLON if SUFFIXER_DOUBLONS else
+             "Les noms restent IDENTIQUES ; --suffixer-doublons les distingue."))
+    en_echec = 0
+    for (zn, etage), tranches in sorted(doublons_etage.items()):
+        cotes = []
+        recouvre = 0.0
+        for a, b in zip(tranches, tranches[1:]):
+            r = min(a["zmax"], b["zmax"]) - max(a["zmin"], b["zmin"])
+            recouvre = max(recouvre, r)
+        for t in tranches:
+            cotes.append("%s [%.3f, %.3f]" % (t.get("nature", "?"),
+                                              m(t["zmin"]), m(t["zmax"])))
+        verdict = "OK" if recouvre <= 1e-6 else "C6 ECHEC"
+        if recouvre > 1e-6:
+            en_echec += 1
+        print("  %-24s %-10s %-52s recouvrement %.3f m  %s"
+              % (zn, etage, "  +  ".join(cotes), m(recouvre), verdict))
+    if en_echec:
+        print("\n  %d couple(s) se recouvrent en 3D : C6 les refusera, et "
+              "l'import Ivion\n  fait tomber le LOT ENTIER sur ce motif. A "
+              "reprendre dans Revit." % en_echec)
+    print()
+
 print("Fichier : %s (%d octets)" % (DST.name, DST.stat().st_size))
 print("Separations non horizontales arbitrees au niveau le plus bas : %d"
       % len(retraiter))

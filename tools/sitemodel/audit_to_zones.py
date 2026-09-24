@@ -214,7 +214,7 @@ for v in volumes:
     if lu is None:
         refus.append((ident, nom, "nom hors motif : %s" % motif))
         continue
-    zone, etage, nature = lu
+    zone, etage, nature, cle = lu
 
     faces = v.get("faces") or []
     if not faces:
@@ -263,9 +263,13 @@ for v in volumes:
     if aires_h:
         ecarts_aire.append((nom, abs(aire_m2 - max(aires_h))))
 
+    # LE GROUPE EST LA ZONE. Pas le batiment : REF_Batiment dit de quel
+    # batiment reel releve le volume, il ne regroupe rien. Et la cle "sup"
+    # ne change ni le groupe ni l'etage - c'est un discriminant de nom.
     zones.setdefault(zone, []).append({
         "etage": etage,
         "nature": nature,
+        "cle": cle,
         "coords": [list(p) for p in anneau],
         "aire": round(aire_m2, 4),
         "zmin": zmin,

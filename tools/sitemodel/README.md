@@ -13,7 +13,7 @@ indifférent — **sur copie détachée d'abord** (R17) :
 
 | # | Bouton | Ce qu'il fait |
 |---|---|---|
-| 1 | **Renommer volumes** | écrit la nature dans le 4e segment des volumes qui portent encore `0` |
+| 1 | **Renommer volumes** | refait le nom entier : `VOL_nnn` dans l'ordre de l'espace |
 | 2 | **Audit volumes** | vérifie les noms, et produit le JSON de la chaîne |
 | 3 | **MAJ params volumes** | recopie zone, étage, bâtiment, nature dans les paramètres |
 
@@ -21,20 +21,57 @@ On renomme **avant** d'auditer : un audit passé sur l'ancien motif décrirait
 un état déjà périmé. Et on ne renomme jamais dans la même transaction qu'on
 lit — c'est pourquoi le renommage est un bouton séparé.
 
+`Renommer volumes` démarre toujours en **simulation** ; ses trois autres
+modes écrivent. Le classement peut se rejouer **sans Revit**, sur un audit :
+
+```powershell
+python tools\volumes\dry_run_depuis_audit.py <audit.json>
+```
+
+C'est le même code que le bouton — `bimflow_noms.extraire()` et
+`bimflow_volumes.classer()` — et c'est ce qui permet de lire les 201 noms
+avant le moindre clic.
+
+### L'ordre des numéros
+
+`VOL_nnn` suit l'espace, sur trois niveaux : **par BAT** (préfixe de zone,
+JU puis MI, SC, SE, EXT en dernier), **par colonne** (une colonne = un
+`REF_Zone`, triée d'ouest en est puis du sud au nord **du projet**, sans
+aucune rotation), et **par `zmin` croissant** dans la colonne. Lire une
+nomenclature triée par nom, c'est descendre le bâtiment colonne par colonne.
+
+Un nord local par groupe (`SE` est à 6,6° du nord projet) est **prévu et
+non activé** : personne n'a mesuré qu'il améliore l'ordre, et changer le tri
+change tous les numéros.
+
 ## Le motif de nom
 
 ```
-VOL__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>
-ex. VOL__JU_Bj-Fj-1j-5j__FLOOR_3__ETAGE
+VOL_nnn__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>[__<clé>]
+ex. VOL_007__JU_Bj-Fj-1j-5j__FLOOR_3__ETAGE
+    VOL_092__MI_Amg_Emg_1m_3m__ROOF__TOITURE__sup
 ```
 
 Le 4e segment porte **exactement** une valeur de la liste fermée du socle —
-`ETAGE`, `TOITURE`, `ENTRE_TOIT`, `EXTERIEUR`, `ENVELOPPE` — pour qu'aucune
+`ETAGE`, `TOITURE`, `ENTRETOIT`, `EXTERIEUR`, `ENVELOPPE` — pour qu'aucune
 table de correspondance n'existe entre le nom et le paramètre. C'est cet
 arbitrage du 2026-09-22 qui a fait **abandonner le champ `CLS_Destination`** :
-la destination Ivion se déduit de la nature.
+la destination Ivion se déduit de la nature. `ENTRETOIT` s'écrit en un mot
+depuis le 2026-09-24.
 
-**Ce qui part vers Ivion** : `ETAGE`, `TOITURE`, `ENTRE_TOIT`, `EXTERIEUR`.
+Le **5e segment est optionnel**. `sup` est un simple discriminant d'unicité :
+il n'alimente aucun paramètre, et ne change ni le groupe ni le nom d'étage.
+`JU`, `MI`, `SC` ou `SE` donnent `REF_Batiment` et **surchargent** le préfixe
+de la zone — 18 volumes sont dans ce cas au 2026-09-24.
+
+> ⚠️ **`BAT` et `REF_Batiment` ne sont pas la même chose.** Le `BAT` qui
+> **trie** est le préfixe de `REF_Zone` ; `REF_Batiment`, que la clé peut
+> surcharger, dit seulement de quel bâtiment relève un volume. Trier sur
+> `REF_Batiment` couperait en deux blocs les **8 zones** dont les volumes
+> sont affectés à deux bâtiments — or une zone est une colonne, et c'est
+> elle qui devient un `BUILDING`.
+
+**Ce qui part vers Ivion** : `ETAGE`, `TOITURE`, `ENTRETOIT`, `EXTERIEUR`.
 `ENVELOPPE` est exclue — un volume d'enveloppe LOD100 n'est ni un étage ni
 une toiture — et une tranche sans nature ne l'est pas davantage : une nature
 ne se devine pas. Le générateur dit combien il a écarté, et pourquoi.

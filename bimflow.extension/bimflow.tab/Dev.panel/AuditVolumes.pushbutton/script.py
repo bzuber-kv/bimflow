@@ -47,8 +47,9 @@ Le decoupage se fait sur "__" et doit rendre exactement 4 segments. Un
 underscore simple a l'interieur d'un segment (JU_Bj-Fj_1j-5j, FLOOR_2) n'est
 jamais un separateur. Le 4e segment porte EXACTEMENT une valeur de la liste
 fermee de CLS_Nature_volume (arbitrage Bruno du 2026-09-22) : ETAGE,
-TOITURE, ENTRE_TOIT, EXTERIEUR, ENVELOPPE. Les volumes qui portent encore
-"0" relevent du bouton Renommer volumes. Tout est signale, rien n'est
+TOITURE, ENTRETOIT, EXTERIEUR, ENVELOPPE. Un 5e segment optionnel porte une
+cle (sup, JU, MI, SC, SE). Les noms qui ne sont pas au motif relevent du
+bouton Renommer volumes. Tout est signale, rien n'est
 corrige - cet outil ne touche a rien.
 
 Ce que le JSON contient :

@@ -1,43 +1,51 @@
 # -*- coding: utf-8 -*-
-"""renommer_volumes - Porte la nature dans le NOM des volumes de zone.
+"""renommer_volumes - Renomme les familles des volumes de zone, dans l'ordre
+de l'espace.
 
-Ecrit le 2026-09-22.
+Reecrit le 2026-09-24 (il ne posait auparavant qu'une nature sur les volumes
+"0" ; il refait desormais le nom entier).
 
-OBJET. Renommer la FAMILLE des volumes in situ dont le 4e segment vaut
-encore "0", en y portant leur nature :
+OBJET. Donner a chaque volume in situ un nom au motif etendu :
 
-    VOL__<REF_Zone>__<REF_Etage>__0
-                                  -> VOL__<REF_Zone>__<REF_Etage>__ETAGE
-                                  -> VOL__<REF_Zone>__<REF_Etage>__TOITURE
+    VOL_nnn__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>[__<cle>]
 
-La nature se deduit du seul etage : REF_Etage == "ROOF" donne TOITURE, tout
-le reste donne ETAGE. Les autres valeurs de la liste fermee - ENTRE_TOIT,
-EXTERIEUR, ENVELOPPE - ne se devinent PAS depuis le nom : elles se posent a
-la main, dans Revit.
+Le numero nnn suit l'espace, sur trois niveaux : par batiment (JU, MI, SC,
+SE, puis EXT), puis par colonne triee d'ouest en est puis du sud au nord du
+PROJET, puis du bas vers le haut dans la colonne. Lire une nomenclature
+triee par nom, c'est alors descendre le batiment colonne par colonne.
 
 #############################################################################
-# STATUT : NON EPROUVE - JAMAIS EXECUTE DANS REVIT au 2026-09-22.           #
-# Ce script ECRIT dans le modele : il renomme des familles. Essai sur       #
-# COPIE DETACHEE uniquement (R17). Le succes affiche ici NE PROUVE RIEN :   #
-# la verification se fait dans l'arborescence du projet et en nomenclature. #
+# STATUT : NON EPROUVE dans Revit au 2026-09-24. Le CLASSEMENT, lui, a ete  #
+# rejoue hors Revit sur l'audit du 2026-09-24 (201 volumes) par             #
+# tools/volumes/dry_run_depuis_audit.py, QUI APPELLE LE MEME CODE :         #
+# 0 non resolu, 0 collision, x puis y croissants dans les 4 batiments,      #
+# zmin croissant dans les 61 colonnes.                                      #
+# Ce qui n'est PAS eprouve : l'ecriture elle-meme - le renommage des        #
+# familles, et surtout celui des types (voir ESSAI ci-dessous).             #
 #############################################################################
 
-POURQUOI UN BOUTON SEPARE DE "MAJ params volumes". Le nom de famille est la
-SOURCE de verite : c'est lui qui porte la zone, l'etage et la nature, et
-tous les autres outils le lisent. On n'ecrit pas la source dans la meme
-transaction qu'on la lit - sans quoi un meme clic deciderait de la verite
-et en tirerait les consequences, sans que personne puisse regarder entre
-les deux. Ordre d'emploi : ce bouton, PUIS Audit volumes pour verifier,
-PUIS MAJ params volumes.
+QUATRE MODES, choisis au lancement. La simulation est le defaut, et aucune
+transaction n'existe avant un choix explicite.
 
-CE QU'IL NE FAIT PAS : il ne touche ni a la geometrie, ni aux parametres,
-ni aux noms deja conformes. Il ne devine aucune nature autre que les deux
-citees plus haut.
+  1. Simulation            lecture seule, CSV du avant/apres
+  2. Renommer les familles ecriture, en DEUX PASSES
+  3. Types : essai sur 3   ecriture, trois volumes seulement
+  4. Types : tous          ecriture, apres l'essai et pas avant
 
-UNICITE. Revit exige un nom de famille unique. Si l'un des noms voulus
-existe deja - dans le modele, ou en double dans le lot - RIEN n'est
-renomme, et le conflit est nomme. Un renommage partiel laisserait la
-maquette a moitie dans l'ancien motif et a moitie dans le nouveau.
+POURQUOI DEUX PASSES AU RENOMMAGE. Les numeros redistribuent les noms : un
+nom final peut etre deja porte par une AUTRE famille au moment ou on veut
+le poser, et Revit refuse alors le doublon. Passe 1 : chaque famille prend
+un nom temporaire "~TMP_<id>". Passe 2 : chacune prend son nom final. Les
+deux transactions sont enfermees dans un TransactionGroup : si la passe 2
+echoue, la passe 1 est annulee avec elle, et la maquette ne reste pas avec
+des familles nommees "~TMP_...".
+
+L'ESSAI DES NOMS DE TYPE [hypothese, a lever sur Revit]. Chaque volume in
+situ est sa propre famille, donc deux types homonymes vivent dans DEUX
+familles distinctes et devraient etre acceptes. Revit peut imposer une
+unicite plus large sur les familles in situ : PERSONNE ICI NE LE SAIT. Le
+mode 3 en renomme TROIS et rapporte ce qui s'est passe. Si Revit refuse,
+le script s'arrete et le dit - il n'invente aucun repli.
 
 bimflow - volumes de zone, mode ecriture - Keovia Solutions inc.
 """
@@ -49,49 +57,87 @@ __author__ = "Keovia Solutions inc."
 # PARAMETRES
 # --------------------------------------------------------------------------
 
+# Nom de type voulu pour tous les volumes.
+NOM_TYPE_VOULU = "Volume Ivion"
+
+# Combien de volumes l'essai de renommage de type traite.
+TAILLE_ESSAI = 3
+
+# Nord local par groupe de batiments, en degres. PREVU, NON ACTIF : {"SE": 6.6}
+# ferait pivoter les centres des colonnes de SE avant le tri. Personne n'a
+# mesure que cela ameliore l'ordre, et changer le tri change tous les numeros.
+NORD_LOCAL = {}
+
 # Une maquette collaborative doit etre traitee sur une COPIE DETACHEE (R17).
 AUTORISER_NON_DETACHE = False
 
+# Typos relevees a la main sur la maquette au 2026-09-24. Ces quatre noms ne
+# se decoupent pas : la table les traduit, elle ne les devine pas. Elle
+# devient inutile des que les noms sont refaits.
+# Meme table que tools/volumes/dry_run_depuis_audit.py.
+CORRECTIONS = {
+    "Volume 019__SC_Bp_Cp_3p_3p__ROOF_TOITURE":
+        ("SC_Bp_Cp_3p_3p", "ROOF", "TOITURE", None),
+    "Volume 089__MI_Amg_Am_4mg_5m_ROOF__ENTRETOIT":
+        ("MI_Amg_Am_4mg_5m", "ROOF", "ENTRETOIT", None),
+    "Volume 100__MI_Dm_Emg_6m_7m__ROOF_ENTRETOIT":
+        ("MI_Dm_Emg_6m_7m", "ROOF", "ENTRETOIT", None),
+    # nature absente du nom ; ETAGE arbitre par Bruno le 2026-09-24
+    "Volume 098__MI_Dm_Emg_6m_7m__FLOOR_1":
+        ("MI_Dm_Emg_6m_7m", "FLOOR_1", "ETAGE", None),
+}
+
 # --------------------------------------------------------------------------
+
+import io
 
 from pyrevit import revit, script, forms
 
-# Le decoupage du nom vit dans UN seul module, partage avec les autres
-# outils (dossier lib\ de l'extension, ajoute au chemin par pyRevit).
 try:
-    from bimflow_noms import (
-        decouper,
-        nature_attendue,
-        SEPARATEUR,
-        NATURE_A_RENOMMER,
-        NATURES,
-        RANG_ZONE,
-        RANG_ETAGE,
-        RANG_NATURE,
-        PREFIXE_ATTENDU,
-    )
+    from bimflow_noms import (extraire, ref_batiment, nom_de_famille,
+                              incoherence_etage_nature, ETAGES_CONNUS)
+    from bimflow_volumes import classer
 except ImportError:
     from pyrevit import forms as _formulaires
     _formulaires.alert(
-        u"Module partage bimflow_noms introuvable.\n\n"
-        u"Il doit se trouver dans bimflow.extension\\lib\\. Sans lui, le "
-        u"decoupage des noms de volumes n'est pas disponible et ce script "
-        u"ne s'execute pas.",
+        u"Modules partages bimflow_noms / bimflow_volumes introuvables.\n\n"
+        u"Ils doivent se trouver dans bimflow.extension\\lib\\. Sans eux, ni "
+        u"le decoupage des noms ni le classement spatial ne sont "
+        u"disponibles, et ce script ne s'execute pas.",
         exitscript=True,
     )
 
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
     BuiltInCategory,
-    Family,
     FamilyInstance,
     Transaction,
+    TransactionGroup,
     TransactionStatus,
 )
 from Autodesk.Revit.UI import TaskDialog, TaskDialogCommonButtons, TaskDialogResult
 
 doc = revit.doc
 out = script.get_output()
+
+MM_PAR_PIED = 304.8
+try:
+    from Autodesk.Revit.DB import UnitUtils, UnitTypeId
+    _UNITE_MM = UnitTypeId.Millimeters
+except Exception:
+    UnitUtils = None
+    _UNITE_MM = None
+
+
+def mm(valeur):
+    if valeur is None:
+        return None
+    if UnitUtils is not None and _UNITE_MM is not None:
+        try:
+            return UnitUtils.ConvertFromInternalUnits(valeur, _UNITE_MM)
+        except Exception:
+            pass
+    return valeur * MM_PAR_PIED
 
 
 def id_de(eid):
@@ -129,18 +175,42 @@ try:
 except Exception:
     detache = None
 
-if collaboratif and detache is not True and not AUTORISER_NON_DETACHE:
+# Rappel : IsWorkshared reste True apres un detachement conservant les
+# sous-projets. C'est IsDetached qui tranche, et lui seul.
+NON_DETACHEE = collaboratif and detache is not True
+
+MODES = [u"1 - Simulation (aucune ecriture)",
+         u"2 - Renommer les familles",
+         u"3 - Types : essai sur {0} volumes".format(TAILLE_ESSAI),
+         u"4 - Types : tous les volumes"]
+
+mode = forms.alert(
+    u"Volumes de zone - que faire ?\n\n"
+    u"La simulation n'ecrit rien et produit le CSV du avant/apres. "
+    u"Les trois autres modes ecrivent dans la maquette.",
+    title=u"bimflow - Renommer les volumes",
+    options=MODES,
+)
+if not mode:
+    script.exit()
+
+ECRITURE = not mode.startswith(u"1")
+MODE_TYPES = mode.startswith(u"3") or mode.startswith(u"4")
+ESSAI = mode.startswith(u"3")
+
+if ECRITURE and NON_DETACHEE and not AUTORISER_NON_DETACHE:
     forms.alert(
         u"Maquette collaborative, et ce n'est pas une copie detachee.\n\n"
-        u"Ce script RENOMME des familles : il ne tourne que sur une copie "
-        u"detachee (R17).\n\n"
-        u"Rouvrir la maquette avec \"Detacher du fichier central\", puis "
-        u"relancer.",
+        u"Ce script ECRIT dans le modele : il ne tourne que sur une copie "
+        u"detachee (R17). Rappel : IsWorkshared reste vrai apres un "
+        u"detachement conservant les sous-projets - c'est IsDetached qui "
+        u"tranche.\n\n"
+        u"Rouvrir avec \"Detacher du fichier central\", puis relancer.",
         exitscript=True,
     )
 
 # --------------------------------------------------------------------------
-# 1. Passage 1 - LECTURE SEULE : quels noms, et vers quoi
+# 1. Lecture et classement - LECTURE SEULE, quel que soit le mode
 # --------------------------------------------------------------------------
 
 ids = list(
@@ -151,212 +221,428 @@ ids = list(
 )
 # R15 fait 8 : le collecteur est consomme AVANT toute resolution de propriete.
 
-# Tous les noms de famille du document : c'est contre EUX que l'unicite se
-# verifie, pas seulement contre les volumes.
-noms_pris = set()
-for fid in list(FilteredElementCollector(doc).OfClass(Family).ToElementIds()):
-    f = doc.GetElement(fid)
-    if f is None:
-        continue
-    try:
-        noms_pris.add(f.Name)
-    except Exception:
-        continue
-
-prevus = {}         # id de FAMILLE -> (nom avant, nom apres, [ids volumes])
-element_famille = {}  # id de FAMILLE -> son ElementId, pour le passage 2
-conformes = []      # (eid, nom) - deja au nouveau motif
-ignores = []        # (eid, nom, motif)
-conflits = []       # (nom voulu, motif)
+volumes = []
+non_resolus = []        # (eid, nom, motif)
+noms_familles = {}      # id famille -> nom actuel
+element_famille = {}    # id famille -> ElementId
+element_type = {}       # id volume -> ElementId du type
 
 for eid in ids:
     el = doc.GetElement(eid)
     if el is None:
         continue
-
     if not isinstance(el, FamilyInstance):
-        ignores.append((eid, None, u"volume qui n'est pas une instance de famille"))
+        non_resolus.append((eid, None, u"volume qui n'est pas une instance de famille"))
         continue
-
     try:
-        famille = el.Symbol.Family
+        symbole = el.Symbol
+        famille = symbole.Family
         nom = famille.Name
         in_situ = bool(famille.IsInPlace)
         fid = id_de(famille.Id)
     except Exception as err:
-        ignores.append((eid, None, u"identite illisible : {0}".format(err)))
+        non_resolus.append((eid, None, u"identite illisible : {0}".format(err)))
         continue
 
     if not in_situ:
-        ignores.append((eid, nom, u"volume qui n'est pas in situ"))
+        non_resolus.append((eid, nom, u"volume qui n'est pas in situ"))
         continue
 
-    segments, _defauts = decouper(nom)
-    if segments is None:
-        ignores.append((eid, nom, u"nom indecoupable : {0} n'est pas un motif "
-                                  u"a 4 segments".format(nom)))
+    lu, motif = extraire(nom, CORRECTIONS)
+    if lu is None:
+        non_resolus.append((eid, nom, motif))
         continue
-    if segments[0] != PREFIXE_ATTENDU:
-        ignores.append((eid, nom, u"segment 0 = \"{0}\" au lieu de \"{1}\"".format(
-            segments[0], PREFIXE_ATTENDU)))
+    zone, etage, nature, cle = lu
+
+    try:
+        bb = el.get_BoundingBox(None)
+    except Exception as err:
+        bb = None
+    if bb is None:
+        non_resolus.append((eid, nom, u"boite englobante absente"))
         continue
 
-    nature = segments[RANG_NATURE]
-    if nature in NATURES:
-        conformes.append((eid, nom))
-        continue
-    if nature != NATURE_A_RENOMMER:
-        ignores.append((eid, nom, u"4e segment \"{0}\" : ni \"{1}\", ni une "
-                                  u"valeur de la liste fermee - ce script ne "
-                                  u"devine pas".format(nature, NATURE_A_RENOMMER)))
-        continue
+    try:
+        nom_type = symbole.Name
+    except Exception:
+        nom_type = u""
 
-    zone = segments[RANG_ZONE]
-    etage = segments[RANG_ETAGE]
-    if not zone or not etage:
-        ignores.append((eid, nom, u"zone ou etage vide : rien a en deduire"))
-        continue
+    noms_familles[fid] = nom
+    element_famille[fid] = famille.Id
+    element_type[id_de(eid)] = symbole.Id
 
-    nouveau = SEPARATEUR.join([PREFIXE_ATTENDU, zone, etage,
-                               nature_attendue(etage)])
+    volumes.append({
+        "id": id_de(eid),
+        "eid": eid,
+        "fid": fid,
+        "nom": nom,
+        "type": nom_type,
+        "zone": zone,
+        "etage": etage,
+        "nature": nature,
+        "cle": cle,
+        # le BAT de tri est deduit par classer(), du prefixe de la zone
+        "xc": mm((bb.Min.X + bb.Max.X) / 2.0),
+        "yc": mm((bb.Min.Y + bb.Max.Y) / 2.0),
+        "zmin": mm(bb.Min.Z),
+    })
 
-    if fid in prevus:
-        prevus[fid][2].append(eid)
-    else:
-        prevus[fid] = (nom, nouveau, [eid])
-        element_famille[fid] = famille.Id
+ordonnes, colonnes = classer(volumes, NORD_LOCAL)
+
+for v in ordonnes:
+    v["nouveau"] = nom_de_famille(v["numero"], v["zone"], v["etage"],
+                                  v["nature"], v["cle"])
+
+# --- controles ------------------------------------------------------------
+
+collisions = {}
+for v in ordonnes:
+    collisions.setdefault(v["nouveau"], []).append(v["id"])
+collisions = dict([(k, ids_) for k, ids_ in collisions.items() if len(ids_) > 1])
+
+# une meme famille peut porter plusieurs instances : elle n'a qu'UN nom
+noms_par_famille = {}
+for v in ordonnes:
+    noms_par_famille.setdefault(v["fid"], set()).add(v["nouveau"])
+familles_multiples = dict([(f, sorted(n)) for f, n in noms_par_famille.items()
+                           if len(n) > 1])
+
+incoherences = [(v["id"], v["nom"], incoherence_etage_nature(v["etage"], v["nature"]))
+                for v in ordonnes
+                if incoherence_etage_nature(v["etage"], v["nature"])]
+etages_inconnus = sorted(set([v["etage"] for v in ordonnes
+                              if v["etage"] not in ETAGES_CONNUS]))
+dispersees = [c for c in colonnes if c["dispersion"] > 1.0]
+
+BLOQUANT = bool(non_resolus) or bool(collisions) or bool(familles_multiples)
 
 # --------------------------------------------------------------------------
-# 2. Unicite - AVANT toute transaction, et en bloc
+# 2. Rapport de lecture
 # --------------------------------------------------------------------------
 
-anciens = set([avant for avant, apres, liste in prevus.values()])
-voulus = {}
-for fid, (avant, apres, liste) in prevus.items():
-    # un nom libere par ce meme lot n'est pas un conflit
-    if apres in noms_pris and apres not in anciens:
-        conflits.append((apres, u"ce nom existe deja dans le modele "
-                                u"(famille non concernee par ce lot)"))
-    voulus.setdefault(apres, []).append(avant)
-
-for apres, sources in voulus.items():
-    if len(sources) > 1:
-        conflits.append((apres, u"{0} familles y menent : {1}".format(
-            len(sources), u", ".join(sorted(sources)))))
-
-# --------------------------------------------------------------------------
-# 3. Rapport du passage 1
-# --------------------------------------------------------------------------
-
-out.print_md(u"# Renommage des volumes - passage 1, LECTURE SEULE")
+out.print_md(u"# Renommage des volumes de zone")
 out.print_md(
-    u"Maquette : **{0}** &nbsp;|&nbsp; {1} &nbsp;|&nbsp; **rien n'est encore "
-    u"renomme**".format(
+    u"Maquette : **{0}** &nbsp;|&nbsp; {1} &nbsp;|&nbsp; mode : **{2}**".format(
         doc.Title,
         u"copie detachee" if detache else
-        (u"collaborative NON detachee" if collaboratif else u"non collaborative"))
+        (u"collaborative NON detachee" if collaboratif else u"non collaborative"),
+        mode)
 )
 out.print_md(
-    u"- **{0}** element(s) de categorie Volumes\n"
-    u"- **{1}** famille(s) a renommer\n"
-    u"- **{2}** volume(s) deja au nouveau motif\n"
-    u"- **{3}** volume(s) ignore(s)".format(
-        len(ids), len(prevus), len(conformes), len(ignores))
+    u"- **{0}** volume(s) classe(s), **{1}** colonne(s)\n"
+    u"- **{2}** NON RESOLU(S)\n"
+    u"- **{3}** collision(s) de nom final".format(
+        len(ordonnes), len(colonnes), len(non_resolus), len(collisions))
 )
 
-out.print_md(u"## Renommages prevus")
-if not prevus:
-    out.print_md(u"*Aucun. Rien a renommer, la transaction ne sera pas ouverte.*")
-else:
-    lignes = [u"| Famille | Avant | Apres | Volumes |", u"|---|---|---|---|"]
-    for fid in sorted(prevus.keys()):
-        avant, apres, liste = prevus[fid]
-        lignes.append(u"| `{0}` | `{1}` | **`{2}`** | {3} |".format(
-            fid, avant, apres,
-            u" ".join([lien_de(e) for e in liste])))
-    out.print_md(u"\n".join(lignes))
+out.print_md(u"## Decompte par BAT, dans l'ordre de parcours")
+out.print_md(
+    u"*BAT est le **prefixe de REF_Zone** : c'est lui qui trie. "
+    u"`REF_Batiment`, que la cle peut surcharger, dit de quel batiment "
+    u"releve un volume - il ne trie rien.*")
+premier, dernier, nb_vol, nb_col = {}, {}, {}, {}
+for v in ordonnes:
+    premier.setdefault(v["bat"], v["numero"])
+    dernier[v["bat"]] = v["numero"]
+    nb_vol[v["bat"]] = nb_vol.get(v["bat"], 0) + 1
+for c in colonnes:
+    nb_col[c["batiment"]] = nb_col.get(c["batiment"], 0) + 1
+tableau = [u"| BAT | Colonnes | Volumes | Plage |", u"|---|---:|---:|---|"]
+for bat in sorted(nb_vol.keys(), key=lambda b: premier[b]):
+    tableau.append(u"| **{0}** | {1} | {2} | `VOL_{3:03d}` -> `VOL_{4:03d}` |".format(
+        bat, nb_col.get(bat, 0), nb_vol[bat], premier[bat], dernier[bat]))
+out.print_md(u"\n".join(tableau))
 
-if ignores:
-    out.print_md(u"## Volumes ignores - aucun ne sera renomme")
-    for eid, nom, motif in ignores:
-        out.print_md(u"- {0} `{1}` : {2}".format(
-            lien_de(eid), texte(nom), motif))
+if non_resolus:
+    out.print_md(u"## NON RESOLUS - aucun ne sera renomme")
+    for eid, nom, motif in non_resolus:
+        out.print_md(u"- {0} `{1}` : {2}".format(lien_de(eid), texte(nom), motif))
 
-if conflits:
-    out.print_md(u"## CONFLITS DE NOM - rien ne sera renomme")
-    for nom, motif in conflits:
-        out.print_md(u"- `{0}` : {1}".format(nom, motif))
+if collisions:
+    out.print_md(u"## COLLISIONS - deux volumes aboutiraient au meme nom")
+    for nom, ids_ in sorted(collisions.items()):
+        out.print_md(u"- `{0}` : {1}".format(nom, ids_))
+    out.print_md(u"> Il manque une cle `sup` a l'un des deux.")
+
+if familles_multiples:
+    out.print_md(u"## UNE FAMILLE, DEUX NOMS VOULUS")
+    for fid, noms in familles_multiples.items():
+        out.print_md(u"- famille `{0}` (`{1}`) : {2}".format(
+            fid, texte(noms_familles.get(fid)), u", ".join(noms)))
     out.print_md(
-        u"> **Arret.** Un nom de famille doit etre unique dans le document. "
-        u"Le lot est refuse EN BLOC : renommer une partie laisserait la "
-        u"maquette a moitie dans l'ancien motif, a moitie dans le nouveau. "
-        u"Traiter ces conflits a la main dans Revit, puis relancer."
-    )
-    script.exit()
+        u"> Cette famille porte plusieurs instances, qui ne tombent pas au "
+        u"meme rang. Une famille n'a qu'un nom : a trancher dans Revit.")
 
-if not prevus:
+if dispersees:
+    out.print_md(u"## Colonnes dispersees - leurs volumes ne partagent pas un centre")
+    for c in dispersees:
+        out.print_md(u"- `{0}` : dispersion **{1:.0f} mm** sur {2} volume(s)".format(
+            c["zone"], c["dispersion"], len(c["volumes"])))
     out.print_md(
-        u"---\n**Fin.** Aucune transaction n'a ete ouverte, rien n'a ete "
-        u"renomme."
+        u"> Le classement reste valide - il trie sur le centre moyen - mais "
+        u"une zone dont les tranches ne se superposent pas n'est pas une "
+        u"colonne, et la chaine site_model le refusera (regle R1).")
+
+if incoherences:
+    out.print_md(u"## Etage et nature ne s'accordent pas - signale, PAS bloquant")
+    for eid, nom, motif in incoherences:
+        out.print_md(u"- {0} `{1}` : {2}".format(lien_de(eid), texte(nom), motif))
+
+if etages_inconnus:
+    out.print_md(u"## Etages hors de la liste connue *(liste ouverte)*")
+    out.print_md(u", ".join([u"`{0}`".format(e) for e in etages_inconnus]))
+
+# --------------------------------------------------------------------------
+# 3. CSV
+# --------------------------------------------------------------------------
+
+ENTETE_CSV = u";".join([
+    u"element_id", u"ancien_nom_famille", u"nouveau_nom_famille",
+    u"ancien_nom_type", u"BAT", u"REF_Zone", u"REF_Etage",
+    u"CLS_Nature_volume", u"cle", u"REF_Batiment", u"xc", u"yc", u"zmin",
+])
+
+FRAGMENTS_INTERDITS = ("onedrive", "\\work\\")
+
+
+def champ(valeur):
+    return texte(valeur).replace(u";", u",").replace(u"\n", u" ")
+
+
+def ecrire_csv(resultats=None, suffixe=u""):
+    """resultats : {id volume : nom reellement porte apres ecriture}."""
+    lignes = [ENTETE_CSV]
+    for v in ordonnes:
+        nouveau = v["nouveau"]
+        if resultats is not None:
+            nouveau = resultats.get(v["id"], u"(NON RENOMME)")
+        lignes.append(u";".join([
+            champ(v["id"]), champ(v["nom"]), champ(nouveau), champ(v["type"]),
+            champ(v["bat"]), champ(v["zone"]), champ(v["etage"]),
+            champ(v["nature"]), champ(v["cle"] or u""),
+            champ(ref_batiment(v["zone"], v["cle"])),
+            champ(u"%.1f" % v["xc"]), champ(u"%.1f" % v["yc"]),
+            champ(u"%.1f" % v["zmin"]),
+        ]))
+    defaut = u"renommage_volumes_{0}{1}".format(
+        doc.Title.replace(u" ", u"_"), suffixe)
+    for _ in range(3):
+        chemin = forms.save_file(file_ext="csv", default_name=defaut)
+        if not chemin:
+            out.print_md(u"*CSV non ecrit (annule).*")
+            return None
+        if any(f in chemin.lower() for f in FRAGMENTS_INTERDITS):
+            forms.alert(u"Ni OneDrive ni WORK : choisir un autre dossier.\n\n"
+                        u"{0}".format(chemin))
+            continue
+        f = io.open(chemin, "w", encoding="utf-8-sig", newline="")
+        try:
+            f.write(u"\n".join(lignes))
+        finally:
+            f.close()
+        out.print_md(u"**CSV** : `{0}` ({1} ligne(s))".format(
+            chemin, len(lignes) - 1))
+        return chemin
+    return None
+
+
+out.print_md(u"## Export du avant / apres")
+ecrire_csv()
+
+if not ECRITURE:
+    out.print_md(
+        u"---\n**Simulation terminee.** Aucune transaction n'a ete ouverte, "
+        u"rien n'a ete ecrit dans la maquette."
     )
     script.exit()
 
 # --------------------------------------------------------------------------
-# 4. Confirmation explicite
+# 4. Refus d'ecrire tant qu'un cas n'est pas tranche
 # --------------------------------------------------------------------------
 
-nb_volumes = sum([len(liste) for avant, apres, liste in prevus.values()])
+if BLOQUANT:
+    out.print_md(
+        u"---\n# ECRITURE REFUSEE\n"
+        u"**{0} non resolu(s), {1} collision(s), {2} famille(s) a deux noms.** "
+        u"Aucune transaction n'a ete ouverte.\n\n"
+        u"Un renommage partiel laisserait la maquette a moitie dans chaque "
+        u"motif, et le numero de chacun dependrait de qui a ete traite. Ces "
+        u"cas se tranchent dans Revit, puis on relance.".format(
+            len(non_resolus), len(collisions), len(familles_multiples))
+    )
+    script.exit()
 
-dialogue = TaskDialog(u"bimflow - Renommage des volumes de zone")
-dialogue.MainInstruction = u"Renommer {0} famille(s), portant {1} volume(s) ?".format(
-    len(prevus), nb_volumes)
+# --------------------------------------------------------------------------
+# 5. Renommage des FAMILLES - deux passes, un groupe de transactions
+# --------------------------------------------------------------------------
+
+if not MODE_TYPES:
+
+    a_renommer = {}     # fid -> (avant, apres)
+    for v in ordonnes:
+        a_renommer[v["fid"]] = (v["nom"], v["nouveau"])
+    inchanges = [f for f, (a, b) in a_renommer.items() if a == b]
+
+    dialogue = TaskDialog(u"bimflow - Renommage des volumes de zone")
+    dialogue.MainInstruction = u"Renommer {0} famille(s) ?".format(len(a_renommer))
+    dialogue.MainContent = (
+        u"Maquette : {0}\n"
+        u"Fichier : {1}\n\n"
+        u"{2} famille(s) portent deja leur nom final.\n\n"
+        u"Deux passes : chaque famille prend d'abord un nom temporaire, puis "
+        u"son nom final - sans quoi un nom deja porte par une autre famille "
+        u"ferait echouer le lot. Les deux passes sont annulees ensemble si "
+        u"l'une echoue.\n\n"
+        u"Script NON EPROUVE. Verifier ensuite dans l'arborescence du projet "
+        u"et avec le bouton Audit volumes.".format(
+            doc.Title, doc.PathName or u"(jamais enregistree)", len(inchanges))
+    )
+    dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |
+                              TaskDialogCommonButtons.No)
+    dialogue.DefaultButton = TaskDialogResult.No
+    if dialogue.Show() != TaskDialogResult.Yes:
+        out.print_md(u"---\n**Annule par l'utilisateur.** Rien n'a ete ecrit.")
+        script.exit()
+
+    groupe = TransactionGroup(doc, u"bimflow - renommage des volumes")
+    groupe.Start()
+    echec = None
+    faits = 0
+
+    try:
+        t1 = Transaction(doc, u"bimflow - noms temporaires")
+        t1.Start()
+        try:
+            for fid in sorted(a_renommer.keys()):
+                famille = doc.GetElement(element_famille[fid])
+                if famille is None:
+                    raise Exception(u"famille {0} introuvable".format(fid))
+                famille.Name = u"~TMP_{0}".format(fid)
+        except Exception:
+            t1.RollBack()
+            raise
+        if t1.Commit() != TransactionStatus.Committed:
+            raise Exception(u"passe 1 : commit refuse par Revit")
+
+        t2 = Transaction(doc, u"bimflow - noms definitifs")
+        t2.Start()
+        try:
+            for fid in sorted(a_renommer.keys()):
+                famille = doc.GetElement(element_famille[fid])
+                if famille is None:
+                    raise Exception(u"famille {0} introuvable".format(fid))
+                # compteur AVANT l'appel qui peut lever
+                faits += 1
+                famille.Name = a_renommer[fid][1]
+        except Exception:
+            t2.RollBack()
+            raise
+        if t2.Commit() != TransactionStatus.Committed:
+            raise Exception(u"passe 2 : commit refuse par Revit")
+    except Exception as err:
+        echec = err
+
+    if echec is None:
+        groupe.Assimilate()
+    else:
+        groupe.RollBack()
+        faits = 0
+
+    out.print_md(u"---")
+    out.print_md(u"# Renommage des familles")
+    if echec is not None:
+        out.print_md(
+            u"## ECHEC - tout a ete annule\n`{0}`\n\n"
+            u"**La maquette est dans l'etat ou elle etait avant le clic.** Les "
+            u"deux passes ont ete annulees ensemble : aucune famille ne reste "
+            u"avec un nom temporaire.".format(echec)
+        )
+        script.exit()
+
+    # relecture du resultat REEL, famille par famille
+    reels = {}
+    for v in ordonnes:
+        famille = doc.GetElement(element_famille[v["fid"]])
+        try:
+            reels[v["id"]] = famille.Name if famille is not None else u"(introuvable)"
+        except Exception as err:
+            reels[v["id"]] = u"(illisible : {0})".format(err)
+    conformes = len([v for v in ordonnes if reels.get(v["id"]) == v["nouveau"]])
+
+    out.print_md(
+        u"**{0} famille(s) renommee(s)** en deux passes, un seul groupe de "
+        u"transactions.\n\n"
+        u"**{1} volume(s) sur {2}** portent le nom voulu, verifie par "
+        u"relecture apres ecriture.".format(len(a_renommer), conformes,
+                                            len(ordonnes))
+    )
+    out.print_md(u"## CSV de post-execution")
+    ecrire_csv(reels, u"_apres")
+    out.print_md(
+        u"> **Suite.** Passer **Audit volumes** pour verifier, puis **MAJ "
+        u"params volumes**. Les noms de TYPE se traitent a part, par le mode "
+        u"3 (essai sur {0}) avant le mode 4.".format(TAILLE_ESSAI)
+    )
+    script.exit()
+
+# --------------------------------------------------------------------------
+# 6. Noms de TYPE - l'essai d'abord, et il rapporte ce qu'il observe
+# --------------------------------------------------------------------------
+
+cibles = ordonnes[:TAILLE_ESSAI] if ESSAI else ordonnes
+deja = [v for v in cibles if v["type"] == NOM_TYPE_VOULU]
+a_faire = [v for v in cibles if v["type"] != NOM_TYPE_VOULU]
+
+out.print_md(u"---")
+out.print_md(u"# Noms de type -> `{0}`".format(NOM_TYPE_VOULU))
+out.print_md(
+    u"{0} volume(s) vise(s), dont **{1}** portent deja ce nom de type.\n\n"
+    u"> **Ce qui est en jeu, et qui n'est PAS connu.** Chaque volume in situ "
+    u"est sa propre famille : deux types homonymes vivraient donc dans deux "
+    u"familles distinctes, ce que Revit devrait accepter. Mais il peut "
+    u"imposer une unicite plus large sur les familles in situ. **Personne ne "
+    u"l'a mesure.** C'est l'objet de cet essai.".format(
+        len(cibles), len(deja))
+)
+
+if not a_faire:
+    out.print_md(u"*Rien a faire : tous portent deja le nom voulu.*")
+    script.exit()
+
+dialogue = TaskDialog(u"bimflow - Noms de type")
+dialogue.MainInstruction = u"Renommer le type de {0} volume(s) en \"{1}\" ?".format(
+    len(a_faire), NOM_TYPE_VOULU)
 dialogue.MainContent = (
-    u"Maquette : {0}\n"
-    u"Fichier : {1}\n\n"
-    u"Le detail (nom avant, nom apres) est affiche dans la fenetre de "
-    u"sortie.\n\n"
-    u"Le nom de famille est la SOURCE de verite des volumes de zone : c'est "
-    u"lui que les autres outils lisent. Un seul commit pour tout le lot ; si "
-    u"un renommage echoue, TOUT est annule.\n\n"
-    u"Script NON EPROUVE. Verifier ensuite dans l'arborescence du projet, "
-    u"puis avec le bouton Audit volumes.".format(
-        doc.Title, doc.PathName or u"(jamais enregistree)")
+    u"Maquette : {0}\n\n"
+    u"{1}\n\n"
+    u"Comportement de Revit INCONNU sur ce point : si le deuxieme type "
+    u"homonyme est refuse, le script s'arrete, annule tout, et rapporte "
+    u"l'erreur exacte. Il n'essaiera aucun repli.".format(
+        doc.Title,
+        u"ESSAI sur {0} volume(s) - a lire avant de traiter les {1}.".format(
+            len(a_faire), len(ordonnes)) if ESSAI else
+        u"TOUS les volumes. A ne lancer qu'APRES un essai concluant.")
 )
 dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |
                           TaskDialogCommonButtons.No)
 dialogue.DefaultButton = TaskDialogResult.No
-
 if dialogue.Show() != TaskDialogResult.Yes:
-    out.print_md(
-        u"---\n**Annule par l'utilisateur.** Aucune transaction n'a ete "
-        u"ouverte, rien n'a ete renomme."
-    )
+    out.print_md(u"**Annule par l'utilisateur.** Rien n'a ete ecrit.")
     script.exit()
 
-# --------------------------------------------------------------------------
-# 5. Passage 2 - ECRITURE : une transaction, un commit, tout ou rien
-# --------------------------------------------------------------------------
-
-renommees = 0
+journal = []
 echec = None
-
-transaction = Transaction(doc, u"bimflow - renommage des volumes de zone")
+transaction = Transaction(doc, u"bimflow - noms de type des volumes")
 if transaction.Start() != TransactionStatus.Started:
-    forms.alert(
-        u"Revit a refuse d'ouvrir la transaction. Rien n'a ete renomme.",
-        exitscript=True,
-    )
+    forms.alert(u"Revit a refuse d'ouvrir la transaction.", exitscript=True)
 
 try:
-    for fid in sorted(prevus.keys()):
-        avant, apres, liste = prevus[fid]
-        # le compteur AVANT l'appel qui peut lever
-        renommees += 1
-        famille = doc.GetElement(element_famille[fid])
-        if famille is None:
-            raise Exception(
-                u"famille {0} introuvable au moment de renommer".format(fid))
-        famille.Name = apres
+    for v in a_faire:
+        symbole = doc.GetElement(element_type[v["id"]])
+        if symbole is None:
+            raise Exception(u"type du volume {0} introuvable".format(v["id"]))
+        journal.append((v["id"], v["type"]))
+        symbole.Name = NOM_TYPE_VOULU
 except Exception as err:
     echec = err
 
@@ -364,48 +650,56 @@ if echec is None:
     etat = transaction.Commit()
     if etat != TransactionStatus.Committed:
         echec = u"Commit refuse par Revit (etat : {0})".format(etat)
-        renommees = 0
 else:
     transaction.RollBack()
-    renommees = 0
 
-# --------------------------------------------------------------------------
-# 6. Rapport final
-# --------------------------------------------------------------------------
-
-out.print_md(u"---")
-out.print_md(u"# Passage 2 - renommage")
+out.print_md(u"## Resultat de l'{0}".format(u"essai" if ESSAI else u"execution"))
 
 if echec is not None:
     out.print_md(
-        u"## ECHEC - tout a ete annule\n"
-        u"`{0}`\n\n"
-        u"**La maquette est dans l'etat ou elle etait avant le clic** : la "
-        u"transaction a ete annulee en bloc, aucun nom n'a survecu. A "
-        u"diagnostiquer avant de relancer.".format(echec)
+        u"### REVIT A REFUSE - tout a ete annule\n"
+        u"Erreur exacte, telle que l'API l'a rendue :\n\n"
+        u"```\n{0}\n```\n\n"
+        u"**{1} type(s) avaient ete traites avant le refus.** L'hypothese "
+        u"\"deux types homonymes dans deux familles in situ distinctes sont "
+        u"acceptes\" est donc FAUSSE, au moins dans ce cas. C'est un fait "
+        u"mesure, a porter en fiche.\n\n"
+        u"Aucun repli n'est tente : le nom de type voulu se decidera en "
+        u"connaissance de cause.".format(echec, len(journal))
     )
     script.exit()
 
+# relecture : ce que les types portent VRAIMENT
+reels = {}
+for v in cibles:
+    symbole = doc.GetElement(element_type[v["id"]])
+    try:
+        reels[v["id"]] = symbole.Name if symbole is not None else u"(introuvable)"
+    except Exception as err:
+        reels[v["id"]] = u"(illisible : {0})".format(err)
+conformes = len([v for v in cibles if reels.get(v["id"]) == NOM_TYPE_VOULU])
+
 out.print_md(
-    u"| Resultat | Nombre | Motif |\n|---|---:|---|\n"
-    u"| **Renommees** | {0} | 4e segment \"{1}\" remplace par la nature |\n"
-    u"| **Deja conformes** | {2} | 4e segment deja dans la liste fermee |\n"
-    u"| **Ignores** | {3} | nom indecoupable, volume non in situ, ou 4e "
-    u"segment que ce script ne devine pas |".format(
-        len(prevus), NATURE_A_RENOMMER, len(conformes), len(ignores))
+    u"**{0} type(s) renomme(s)**, et **{1} sur {2}** portent bien "
+    u"`{3}` a la relecture.".format(
+        len(a_faire), conformes, len(cibles), NOM_TYPE_VOULU)
 )
-out.print_md(
-    u"**{0} famille(s) renommee(s)**, portant {1} volume(s), en un seul "
-    u"commit.".format(renommees, nb_volumes)
-)
-out.print_md(
-    u"> **Suite.** Passer **Audit volumes** pour verifier les noms, puis "
-    u"**MAJ params volumes** pour porter la nature dans "
-    u"`CLS_Nature_volume`.\n\n"
-    u"> **Ce que ce resultat ne prouve pas.** Le script rapporte ce que "
-    u"l'API lui a rendu. La verification se fait dans l'**arborescence du "
-    u"projet** (Familles > Volumes) et en **nomenclature de Volumes**.\n\n"
-    u"> **ENTRE_TOIT, EXTERIEUR et ENVELOPPE ne se devinent pas** : ce "
-    u"script ne pose que ETAGE et TOITURE. Les autres natures se corrigent "
-    u"a la main dans Revit, sur le nom de famille."
-)
+lignes = [u"| Volume | Type avant | Type apres |", u"|---|---|---|"]
+for v in cibles:
+    lignes.append(u"| {0} | `{1}` | `{2}` |".format(
+        lien_de(v["eid"]), texte(v["type"]), texte(reels.get(v["id"]))))
+out.print_md(u"\n".join(lignes))
+
+if ESSAI:
+    out.print_md(
+        u"> **Essai concluant sur {0} volume(s) : Revit a accepte des types "
+        u"homonymes dans des familles in situ distinctes.** C'est un fait "
+        u"mesure ce jour, sur cette maquette - pas une regle generale tant "
+        u"qu'il n'est pas retrouve ailleurs.\n\n"
+        u"> Le mode 4 traite les {1} volumes.".format(
+            len(a_faire), len(ordonnes))
+    )
+else:
+    out.print_md(
+        u"> **Suite.** Passer **Audit volumes**, puis **MAJ params volumes**."
+    )
