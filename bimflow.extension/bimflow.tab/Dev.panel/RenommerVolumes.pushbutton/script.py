@@ -119,6 +119,7 @@ except ImportError:
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
     BuiltInCategory,
+    Family,
     FamilyInstance,
     Transaction,
     TransactionGroup,
