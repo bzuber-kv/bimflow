@@ -35,10 +35,19 @@ transaction n'existe avant un choix explicite.
 POURQUOI DEUX PASSES AU RENOMMAGE. Les numeros redistribuent les noms : un
 nom final peut etre deja porte par une AUTRE famille au moment ou on veut
 le poser, et Revit refuse alors le doublon. Passe 1 : chaque famille prend
-un nom temporaire "~TMP_<id>". Passe 2 : chacune prend son nom final. Les
+un nom temporaire "TMP_<id>". Passe 2 : chacune prend son nom final. Les
 deux transactions sont enfermees dans un TransactionGroup : si la passe 2
 echoue, la passe 1 est annulee avec elle, et la maquette ne reste pas avec
-des familles nommees "~TMP_...".
+des familles nommees "TMP_...".
+
+ATTENTION - le nom temporaire s'ecrivait "~TMP_<id>" jusqu'au 2026-09-24 :
+le tilde fait partie des caracteres que Revit REFUSE dans un nom, et la
+passe 1 echouait sur "Name cannot include prohibited characters" - mesure du
+jour, sur les 202 volumes de The Study. Caracteres interdits [documente] :
+antislash, deux-points, accolades, crochets, barre verticale, point-virgule,
+chevrons, point d'interrogation, accent grave, tilde. Le lot entier a ete
+annule proprement, ce qui a au moins eprouve le TransactionGroup pour de
+vrai.
 
 L'ESSAI DES NOMS DE TYPE [hypothese, a lever sur Revit]. Chaque volume in
 situ est sa propre famille, donc deux types homonymes vivent dans DEUX
@@ -179,10 +188,10 @@ except Exception:
 # sous-projets. C'est IsDetached qui tranche, et lui seul.
 NON_DETACHEE = collaboratif and detache is not True
 
-MODES = [u"1 - Simulation (aucune ecriture)",
-         u"2 - Renommer les familles",
-         u"3 - Types : essai sur {0} volumes".format(TAILLE_ESSAI),
-         u"4 - Types : tous les volumes"]
+MODES = [u"1 - Simuler (lecture seule, aucune ecriture)",
+         u"2 - Renommer les familles (ECRIT dans la maquette)",
+         u"3 - Noms de type : ESSAI sur {0} volumes (ECRIT)".format(TAILLE_ESSAI),
+         u"4 - Noms de type : tous les volumes (ECRIT)"]
 
 mode = forms.alert(
     u"Volumes de zone - que faire ?\n\n"
@@ -446,10 +455,11 @@ def ecrire_csv(resultats=None, suffixe=u""):
     return None
 
 
-out.print_md(u"## Export du avant / apres")
-ecrire_csv()
-
 if not ECRITURE:
+    # Le CSV n'est demande que la ou il sert : en simulation, et apres le
+    # renommage des familles. Les modes de type n'en produisent pas.
+    out.print_md(u"## Export du avant / apres")
+    ecrire_csv()
     out.print_md(
         u"---\n**Simulation terminee.** Aucune transaction n'a ete ouverte, "
         u"rien n'a ete ecrit dans la maquette."
@@ -482,6 +492,52 @@ if not MODE_TYPES:
     for v in ordonnes:
         a_renommer[v["fid"]] = (v["nom"], v["nouveau"])
     inchanges = [f for f, (a, b) in a_renommer.items() if a == b]
+
+    # Noms temporaires de la passe 1. Ni tilde ni aucun des caracteres que
+    # Revit refuse : \ : { } [ ] | ; < > ? ` ~
+    temporaires = dict([(fid, u"TMP_{0}".format(fid)) for fid in a_renommer])
+
+    # GARDE, avant toute transaction : un nom temporaire ne doit heurter ni un
+    # nom de famille existant, ni un nom final. Ici, aucune famille ne
+    # s'appelle TMP_... et tous les noms finaux commencent par VOL_ - mais
+    # cela ne doit pas etre vrai par chance sur la prochaine affaire.
+    noms_existants = set()
+    for _fid_ex in list(FilteredElementCollector(doc).OfClass(Family)
+                        .ToElementIds()):
+        _f_ex = doc.GetElement(_fid_ex)
+        if _f_ex is None:
+            continue
+        try:
+            noms_existants.add(_f_ex.Name)
+        except Exception:
+            continue
+    noms_finaux = set([apres for avant, apres in a_renommer.values()])
+
+    heurts = []
+    for fid, provisoire in sorted(temporaires.items()):
+        if provisoire in noms_existants:
+            heurts.append((provisoire, u"une famille porte deja ce nom"))
+        if provisoire in noms_finaux:
+            heurts.append((provisoire, u"c'est aussi un nom final du lot"))
+    if len(set(temporaires.values())) != len(temporaires):
+        heurts.append((u"(plusieurs)", u"deux familles auraient le meme nom "
+                                       u"temporaire"))
+
+    if heurts:
+        out.print_md(
+            u"---\n# ECRITURE REFUSEE - noms temporaires en conflit\n"
+            u"La passe 1 pose des noms `TMP_<id>` avant de poser les noms "
+            u"finaux. Ceux-ci heurtent l'existant, et aucune transaction n'a "
+            u"ete ouverte :")
+        for nom, motif in heurts:
+            out.print_md(u"- `{0}` : {1}".format(nom, motif))
+        out.print_md(
+            u"> Changer le prefixe temporaire en tete de script, ou renommer "
+            u"a la main la famille qui gene. **Ne pas employer de tilde** : "
+            u"Revit refuse l'antislash, les deux-points, les accolades, les "
+            u"crochets, la barre verticale, le point-virgule, les chevrons, "
+            u"le point d'interrogation, l'accent grave et le tilde.")
+        script.exit()
 
     dialogue = TaskDialog(u"bimflow - Renommage des volumes de zone")
     dialogue.MainInstruction = u"Renommer {0} famille(s) ?".format(len(a_renommer))
@@ -517,7 +573,7 @@ if not MODE_TYPES:
                 famille = doc.GetElement(element_famille[fid])
                 if famille is None:
                     raise Exception(u"famille {0} introuvable".format(fid))
-                famille.Name = u"~TMP_{0}".format(fid)
+                famille.Name = temporaires[fid]
         except Exception:
             t1.RollBack()
             raise
@@ -576,8 +632,11 @@ if not MODE_TYPES:
         u"relecture apres ecriture.".format(len(a_renommer), conformes,
                                             len(ordonnes))
     )
-    out.print_md(u"## CSV de post-execution")
-    ecrire_csv(reels, u"_apres")
+    # Un seul CSV, ecrit APRES : il porte l'ancien nom, le nom voulu et le
+    # nom reellement porte. Le demander aussi avant l'ecriture faisait deux
+    # fichiers quasi identiques, et deux boites de dialogue.
+    out.print_md(u"## Export du avant / apres, releve APRES ecriture")
+    ecrire_csv(reels)
     out.print_md(
         u"> **Suite.** Passer **Audit volumes** pour verifier, puis **MAJ "
         u"params volumes**. Les noms de TYPE se traitent a part, par le mode "
@@ -588,6 +647,27 @@ if not MODE_TYPES:
 # --------------------------------------------------------------------------
 # 6. Noms de TYPE - l'essai d'abord, et il rapporte ce qu'il observe
 # --------------------------------------------------------------------------
+
+# L'ESSAI D'ABORD, ET LE SCRIPT LE VERIFIE. Le mode 4 ne part sur les 202
+# que si au moins un volume porte deja le nom de type voulu - c'est-a-dire
+# si le mode 3 est passe. Sans cette garde, un clic de trop sautait
+# exactement l'etape qui protege des 202.
+if not ESSAI:
+    temoins = [v for v in ordonnes if v["type"] == NOM_TYPE_VOULU]
+    if not temoins:
+        out.print_md(u"---")
+        out.print_md(
+            u"# MODE 4 REFUSE - l'essai n'a pas eu lieu\n"
+            u"Aucun volume ne porte encore le nom de type `{0}` : le mode 3 "
+            u"n'est pas passe, ou il a echoue.\n\n"
+            u"**Ce que l'essai protege.** Personne n'a mesure si Revit "
+            u"accepte deux types homonymes dans deux familles in situ "
+            u"distinctes. S'il refuse, mieux vaut l'apprendre sur {1} volumes "
+            u"que sur {2}.\n\n"
+            u"Relancer le bouton et choisir le **mode 3**.".format(
+                NOM_TYPE_VOULU, TAILLE_ESSAI, len(ordonnes))
+        )
+        script.exit()
 
 cibles = ordonnes[:TAILLE_ESSAI] if ESSAI else ordonnes
 deja = [v for v in cibles if v["type"] == NOM_TYPE_VOULU]
