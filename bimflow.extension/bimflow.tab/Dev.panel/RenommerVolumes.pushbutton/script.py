@@ -21,6 +21,8 @@ triee par nom, c'est alors descendre le batiment colonne par colonne.
 # Le classement avait ete rejoue hors Revit d'abord, par                    #
 # tools/volumes/dry_run_depuis_audit.py, qui appelle LE MEME CODE - et les  #
 # deux ont rendu le meme resultat, au volume pres.                          #
+# Puis EPROUVE SUR MAQUETTE CENTRALE le meme jour (thestudy_A_VOL) : essai  #
+# sur un volume, lot complet, synchronisation et audit a chaque palier.     #
 #############################################################################
 
 QUATRE MODES, choisis au lancement. La simulation est le defaut, et aucune

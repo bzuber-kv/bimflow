@@ -57,9 +57,16 @@ comportement sur copie detachee, lui, n'a pas bouge d'un mot.
 
 AVANT LE PREMIER LOT SUR CENTRALE : le mode 2 de « Renommer volumes »,
 l'essai sur UN volume. Un nom de famille releve des standards de projet, et
-en travail partage les modifier demande un emprunt exclusif que Revit peut
-refuser [hypothese, non mesuree au 2026-09-24]. La simulation ne le verra
-jamais - elle ne teste que la lecture.
+en travail partage les modifier demande un emprunt exclusif. MESURE le
+2026-09-24 sur thestudy_A_VOL : Revit accepte, l'emprunt se fait tout seul,
+et le nom tient apres synchronisation. Mesure faite par un operateur SEUL
+sur la maquette ; ce que Revit fait quand un autre detient le standard reste
+inconnu - d'ou l'essai, qui coute un clic.
+
+LA CHAINE ENTIERE A TOURNE SUR LA MAQUETTE CENTRALE le 2026-09-24 : les
+trois boutons, avec synchronisation et audit a chaque palier, puis le
+site_model mis a jour dans Ivion. Un mode par palier, jamais deux d'affilee
+sans synchroniser ni auditer entre les deux.
 
 Un outil d'ecriture peut se trouver ici : le statut du panneau porte sur la
 maturite, pas sur le mode d'action. Celui qui ecrit garde ses garde-fous -

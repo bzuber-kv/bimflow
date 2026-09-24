@@ -173,23 +173,35 @@ décrit l'état *synchronisé* à l'instant de la lecture — le travail non
 synchronisé des autres n'y est pas, et le JSON portera pourtant une date qui
 fera autorité. Le constat part aussi dans le JSON.
 
-### À MESURER — l'emprunt exclusif d'un standard de projet
+### L'emprunt d'un standard de projet — mesuré, et il passe
 
-> **Hypothèse, non mesurée au 2026-09-24.** Un nom de famille relève des
-> **standards de projet**, pas des éléments. En travail partagé, modifier un
-> standard demande un **emprunt exclusif**, que Revit peut refuser si un autre
-> utilisateur le détient. **La simulation ne le détectera jamais** : elle ne
-> teste que la lecture.
-
-C'est pour cela que `Renommer volumes` a un **mode 2, essai sur un seul
-volume** : il écrit pour de vrai sur une famille, et rapporte exactement ce
+L'hypothèse était celle-ci : un nom de famille relève des **standards de
+projet**, pas des éléments ; en travail partagé, modifier un standard demande
+un **emprunt exclusif** que Revit peut refuser. **La simulation ne peut pas y
+répondre** — elle ne teste que la lecture. D'où le **mode 2 de `Renommer
+volumes`, l'essai sur un seul volume**, qui écrit pour de vrai et rapporte ce
 que Revit rend, sans repli inventé. Même raisonnement que l'essai sur trois
-types, qui a servi (§4).
+types (§4).
 
-Si Revit refuse, l'erreur exacte est à porter ici comme **fait mesuré**, avec
-la date, le nom de la maquette et l'état de réservation lu avant l'essai — ce
-serait une contrainte structurante pour **tout outil Keovia qui renomme des
-familles sur une maquette ACC**.
+**Mesure du 2026-09-24, maquette centrale `thestudy_A_VOL`** :
+
+| Étape | Résultat |
+|---|---|
+| essai sur 1 famille, réservation lue `NotOwned` | Revit **accepte** ; l'emprunt se fait implicitement |
+| synchronisation, puis audit relancé | le nom **tient** côté central |
+| lot complet : 202 familles, puis 202 types, puis les paramètres | **tout passe**, avec synchronisation et audit à chaque palier |
+
+**Il n'y a donc pas de contrainte structurante** pour un outil Keovia qui
+renomme des familles in situ sur une maquette ACC : l'API emprunte le
+standard toute seule et Revit ne demande rien de plus.
+
+⚠️ **Ce que cela ne dit pas.** L'opérateur était **seul** sur la maquette, et
+aucune famille n'était détenue par quelqu'un d'autre (`NotOwned` avant
+l'essai). Ce qui se passe quand un autre utilisateur détient le standard
+reste **non mesuré** — et c'est précisément pourquoi la confirmation fait
+cocher « je suis seul sur cette maquette » plutôt que de faire confiance à la
+chance. Le mode 2 reste le bon premier geste sur toute nouvelle maquette
+centrale : il coûte un clic et répond à la seule question qui compte.
 
 ---
 

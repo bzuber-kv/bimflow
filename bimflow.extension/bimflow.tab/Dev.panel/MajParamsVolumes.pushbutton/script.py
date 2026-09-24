@@ -15,6 +15,8 @@ deja. Ne touche JAMAIS a la geometrie, ni au nom de famille, ni au type.
 # volumes, 1010 valeurs ecrites, 0 parametre absent. Verifie NON PAR LE     #
 # RAPPORT DU SCRIPT mais par un audit relance apres coup (celui de 16h45) : #
 # 202/202 volumes ou le nom et les parametres disent la meme chose.         #
+# Puis EPROUVE SUR MAQUETTE CENTRALE le meme jour (thestudy_A_VOL), apres   #
+# les deux renommages, avec synchronisation et audit a chaque palier.       #
 # Ce script ECRIT. Le succes affiche ici NE PROUVE RIEN : la verification   #
 # se fait en nomenclature ou par un audit separe - c'est ainsi que celle-ci #
 # a ete faite.                                                              #

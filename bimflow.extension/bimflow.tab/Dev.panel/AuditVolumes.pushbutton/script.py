@@ -16,7 +16,9 @@ Ivion, surfaces par niveau.
 # site_model Ivion de 50 BUILDING accepte par tous ses controles.           #
 # L'audit sert aussi de VERIFICATEUR des deux boutons d'ecriture : relance  #
 # apres eux, il dit ce que la maquette porte vraiment - un rapport de       #
-# script, lui, ne dit que ce que le script croit avoir fait.                #
+# script, lui, ne dit que ce que le script croit avoir fait. C'est ce role  #
+# qu'il a tenu le 2026-09-24 sur la maquette CENTRALE thestudy_A_VOL, entre #
+# chaque palier, jusqu'a la mise a jour du site_model dans Ivion.           #
 #############################################################################
 
 LECTURE SEULE - aucune transaction n'est ouverte, rien n'est ecrit dans la

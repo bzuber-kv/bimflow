@@ -42,7 +42,14 @@ boutons : on n'écrit pas la source dans la transaction qui la lit.
 | `audit_to_zones.py` (hors Revit) | **éprouvé** | 202/202 contours reconstruits |
 | `gen_sitemodel.py` (hors Revit) | **éprouvé** | 50 BUILDING, 202 FLOOR, tous contrôles au vert |
 | `run.ps1` (la commande unique) | **éprouvé** | chaîne entière, code de sortie 0 |
-| **import dans Ivion** | **jamais fait** | — |
+| **import dans Ivion** | **éprouvé** | `site_model` mis à jour dans Ivion, 2026-09-24 |
+
+**La chaîne a été parcourue en entier sur la MAQUETTE CENTRALE**
+`thestudy_A_VOL` le 2026-09-24 : renommage des familles, renommage des
+types, écriture des paramètres, synchronisation après chaque palier, audit
+relancé entre chacun, puis `run.ps1` et **mise à jour du `site_model` dans
+Ivion**. La maquette centrale porte donc l'état de référence — ce n'est plus
+la copie détachée.
 
 **Chacune de ces validations vient d'un audit relancé après coup**, pas du
 rapport du script. Ce point n'est pas de la prudence rhétorique : c'est la
@@ -346,14 +353,14 @@ qui a changé**.
 
 ## 10. Ce qui reste ouvert
 
-1. **L'import dans Ivion n'a jamais été fait.** Tous les contrôles amont sont
-   au vert, ce qui n'est pas la même chose : l'import d'Ivion teste la
-   conformité mais **ne diagnostique pas**. À faire sur un site brouillon.
-2. **La carte 2D et les `FLOOR` homonymes.** 14 couples, dans 12 BUILDING,
-   tous `ENTRETOIT` + `TOITURE` empilés sous le même nom `ROOF`. Bruno a
-   confirmé qu'Ivion **les accepte** ; ce que la minimap de navigation en
-   fait reste **inconnu**. `--suffixer-doublons` les distingue si nécessaire
-   — à décider après l'essai, pas avant.
+1. **La carte 2D et les `FLOOR` homonymes.** 14 couples, dans 12 BUILDING,
+   tous `ENTRETOIT` + `TOITURE` empilés sous le même nom `ROOF`. Ivion **les
+   accepte**, et le `site_model` est en place ; ce que la **minimap de
+   navigation** en fait n'a pas été regardé. `--suffixer-doublons` les
+   distingue si nécessaire — à décider sur ce que montre Ivion, pas avant.
+2. **Le jeu d'essai versé vient de la copie détachée** (audit de 16 h 45).
+   La source est désormais la maquette centrale : l'audit final de la
+   centrale devrait le remplacer, avec ses chiffres de régression relevés.
 3. **Panneau définitif des trois boutons.** Ils ont tourné, la règle de sortie
    du panneau `Dev` leur est acquise ; leur destination relève de B25.
 4. **`ControleZoneNiveau` (B18b)** est dans la même situation que l'était
@@ -368,7 +375,9 @@ qui a changé**.
   affirmer d'un comportement Revit sans l'avoir observé **sur Revit**.
 - Tout script qui écrit est précédé d'un **audit en lecture seule** sur le
   même périmètre.
-- Les trois boutons ne tournent que sur **copie détachée** (R17).
+- La **copie détachée** (R17) reste la voie sûre ; depuis le 2026-09-24 elle
+  n'est plus la seule — une maquette centrale s'écrit après une confirmation
+  qui nomme le fichier et fait cocher que l'on est seul dessus.
   `IsWorkshared` reste vrai après un détachement conservant les sous-projets ;
   c'est **`IsDetached`** qui décide.
 - Un script d'écriture : simulation d'abord, confirmation **nommant la
