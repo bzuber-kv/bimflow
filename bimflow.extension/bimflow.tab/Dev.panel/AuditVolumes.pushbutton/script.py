@@ -9,21 +9,22 @@ hors Revit : controle du nommage, alimentation du decoupage site_model
 Ivion, surfaces par niveau.
 
 #############################################################################
-# STATUT : EXECUTE dans Revit le 2026-09-22 - 30 volumes, 11 zones, trois   #
-# batiments. La sortie a ete exploitee par la chaine site_model             #
-# (tools/sitemodel), qui en a tire 30/30 contours reconstruits et une       #
-# partition en plan fermee a 0,00 m2 pres pour 408,97 m2.                   #
-# Une execution n'est pas une garantie : l'outil reste au panneau Dev tant  #
-# qu'il n'a pas servi plusieurs fois, et le JSON de cette execution n'est   #
-# pas encore verse a tools/sitemodel/exemples/.                             #
+# STATUT : EPROUVE - quatre executions dans Revit, du 2026-09-22 au         #
+# 2026-09-24. La derniere : 202 volumes, 53 zones, quatre batiments. La     #
+# sortie alimente la chaine site_model (tools/sitemodel), qui en tire       #
+# 202/202 contours reconstruits, une partition en plan fermee, et un        #
+# site_model Ivion de 50 BUILDING accepte par tous ses controles.           #
+# L'audit sert aussi de VERIFICATEUR des deux boutons d'ecriture : relance  #
+# apres eux, il dit ce que la maquette porte vraiment - un rapport de       #
+# script, lui, ne dit que ce que le script croit avoir fait.                #
 #############################################################################
 
 LECTURE SEULE - aucune transaction n'est ouverte, rien n'est ecrit dans la
 maquette. La seule ecriture est le fichier JSON, hors du modele.
 
-HYPOTHESES POSEES A L'ECRITURE. L'execution du 2026-09-22 a prouve que le
-script tourne et que les contours sont reconstructibles ; elle n'a pas
-statue une a une sur les quatre hypotheses ci-dessous, qui se lisent dans le
+HYPOTHESES POSEES A L'ECRITURE. Les executions ont prouve que le script
+tourne et que les contours sont reconstructibles ; elles n'ont pas statue
+une a une sur les quatre hypotheses ci-dessous, qui se lisent dans le
 JSON produit (valeurs nulles, incoherence_hote, methode de boucle). Aucune
 n'arrete le script : chacune rend None ou une erreur consignee.
   1. MASS_GROSS_VOLUME / MASS_GROSS_SURFACE_AREA / MASS_GROSS_AREA - noms de
@@ -40,10 +41,11 @@ n'arrete le script : chacune rend None ou une erreur consignee.
      autour de la normale (documente, non verifie). A defaut, la plus longue
      est retenue et la methode employee est publiee.
 
-Motif de nom attendu - quatre segments separes par un DOUBLE underscore :
-    VOL__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>
-    ex. VOL__JU_Bj-Fj_1j-5j__FLOOR_2__0
-Le decoupage se fait sur "__" et doit rendre exactement 4 segments. Un
+Motif de nom attendu - quatre segments separes par un DOUBLE underscore,
+un cinquieme optionnel :
+    VOL_nnn__<REF_Zone>__<REF_Etage>__<CLS_Nature_volume>[__<cle>]
+    ex. VOL_007__JU_Bj-Fj_1j-5j__FLOOR_3__ETAGE
+Le decoupage se fait sur "__" et doit rendre 4 ou 5 segments. Un
 underscore simple a l'interieur d'un segment (JU_Bj-Fj_1j-5j, FLOOR_2) n'est
 jamais un separateur. Le 4e segment porte EXACTEMENT une valeur de la liste
 fermee de CLS_Nature_volume (arbitrage Bruno du 2026-09-22) : ETAGE,
@@ -65,7 +67,8 @@ sur The Study, Level.Elevation et la geometrie different de 29 065 mm
 (R16 §1.1). Les niveaux sont publies avec les deux lectures, pour controle.
 
 bimflow - volumes de zone, audit - Keovia Solutions inc.
-v1 - 2026-09-22 : NON EPROUVE (jamais execute dans Revit).
+v1 - 2026-09-22 : premiere execution, 30 volumes.
+v2 - 2026-09-24 : motif etendu (numero, cle), 202 volumes.
 """
 
 __title__ = "Audit\nvolumes zone"

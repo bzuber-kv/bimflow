@@ -11,9 +11,13 @@ deja. Ne touche JAMAIS a la geometrie, ni au nom de famille, ni au type.
     ex. VOL_007__JU_Bj-Fj-1j-5j__FLOOR_3__ETAGE
 
 #############################################################################
-# STATUT : NON EPROUVE - JAMAIS EXECUTE DANS REVIT au 2026-09-24.           #
+# STATUT : EPROUVE le 2026-09-24 sur The Study, copie detachee - 202        #
+# volumes, 1010 valeurs ecrites, 0 parametre absent. Verifie NON PAR LE     #
+# RAPPORT DU SCRIPT mais par un audit relance apres coup (celui de 16h45) : #
+# 202/202 volumes ou le nom et les parametres disent la meme chose.         #
 # Ce script ECRIT. Essai sur COPIE DETACHEE uniquement (R17). Le succes     #
-# affiche ici NE PROUVE RIEN : la verification se fait en nomenclature.     #
+# affiche ici NE PROUVE RIEN : la verification se fait en nomenclature ou   #
+# par un audit separe - c'est ainsi que celle-ci a ete faite.               #
 #############################################################################
 
 CE QUI EST ECRIT, volume par volume :
@@ -389,8 +393,8 @@ dialogue.MainContent = (
     u"apres).\n\n"
     u"Un seul commit pour tout le lot : si une ecriture echoue, TOUT est "
     u"annule.\n\n"
-    u"Script NON EPROUVE. Verifier le resultat en nomenclature de Volumes, "
-    u"pas sur ce que le script affichera.".format(
+    u"Verifier le resultat en nomenclature de Volumes ou par un audit "
+    u"relance apres coup, pas sur ce que le script affichera.".format(
         doc.Title, doc.PathName or u"(jamais enregistree)")
 )
 dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |

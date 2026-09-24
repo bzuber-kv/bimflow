@@ -15,22 +15,20 @@ PROJET, puis du bas vers le haut dans la colonne. Lire une nomenclature
 triee par nom, c'est alors descendre le batiment colonne par colonne.
 
 #############################################################################
-# STATUT : NON EPROUVE dans Revit au 2026-09-24. Le CLASSEMENT, lui, a ete  #
-# rejoue hors Revit sur l'audit du 2026-09-24 (201 volumes) par             #
-# tools/volumes/dry_run_depuis_audit.py, QUI APPELLE LE MEME CODE :         #
-# 0 non resolu, 0 collision, x puis y croissants dans les 4 batiments,      #
-# zmin croissant dans les 61 colonnes.                                      #
-# Ce qui n'est PAS eprouve : l'ecriture elle-meme - le renommage des        #
-# familles, et surtout celui des types (voir ESSAI ci-dessous).             #
+# STATUT : EPROUVE le 2026-09-24 sur The Study - 202 familles renommees,    #
+# 202 types renommes, verifies par un AUDIT LANCE SEPAREMENT : 202/202 au   #
+# motif VOL_nnn, numeros 001 a 202 sans trou, 202/202 types "Volume Ivion". #
+# Le classement avait ete rejoue hors Revit d'abord, par                    #
+# tools/volumes/dry_run_depuis_audit.py, qui appelle LE MEME CODE - et les  #
+# deux ont rendu le meme resultat, au volume pres.                          #
 #############################################################################
 
-QUATRE MODES, choisis au lancement. La simulation est le defaut, et aucune
+TROIS MODES, choisis au lancement. La simulation est le defaut, et aucune
 transaction n'existe avant un choix explicite.
 
-  1. Simulation            lecture seule, CSV du avant/apres
+  1. Simuler               lecture seule, CSV du avant/apres
   2. Renommer les familles ecriture, en DEUX PASSES
-  3. Types : essai sur 3   ecriture, trois volumes seulement
-  4. Types : tous          ecriture, apres l'essai et pas avant
+  3. Noms de type          ecriture, en une passe
 
 POURQUOI DEUX PASSES AU RENOMMAGE. Les numeros redistribuent les noms : un
 nom final peut etre deja porte par une AUTRE famille au moment ou on veut
@@ -49,12 +47,19 @@ chevrons, point d'interrogation, accent grave, tilde. Le lot entier a ete
 annule proprement, ce qui a au moins eprouve le TransactionGroup pour de
 vrai.
 
-L'ESSAI DES NOMS DE TYPE [hypothese, a lever sur Revit]. Chaque volume in
-situ est sa propre famille, donc deux types homonymes vivent dans DEUX
-familles distinctes et devraient etre acceptes. Revit peut imposer une
-unicite plus large sur les familles in situ : PERSONNE ICI NE LE SAIT. Le
-mode 3 en renomme TROIS et rapporte ce qui s'est passe. Si Revit refuse,
-le script s'arrete et le dit - il n'invente aucun repli.
+AUCUN script.exit() APRES UNE ECRITURE, et c'est la regle la plus chere de
+la journee. script.exit() appelle sys.exit(), donc leve SystemExit : la
+commande externe rend Cancelled, et Revit ANNULE tout ce qu'elle a modifie -
+transactions commitees comprises, sans exception, sans message, sans trace.
+Mesure du 2026-09-24 : les modes qui sortaient ainsi voyaient leurs 202
+renommages defaits au run suivant ; ceux qui tombaient a la fin du fichier
+persistaient. Six hypotheses sont mortes avant celle-la.
+Controle : tools/volumes/verifier_sorties_apres_ecriture.py
+
+LES TYPES HOMONYMES [mesure le 2026-09-24]. Chaque volume in situ est sa
+propre famille, et Revit accepte 202 types nommes pareil dans 202 familles
+distinctes. L'essai sur trois volumes qui protegeait cette inconnue a ete
+supprime : l'inconnue est levee.
 
 bimflow - volumes de zone, mode ecriture - Keovia Solutions inc.
 """
@@ -68,9 +73,6 @@ __author__ = "Keovia Solutions inc."
 
 # Nom de type voulu pour tous les volumes.
 NOM_TYPE_VOULU = "Volume Ivion"
-
-# Combien de volumes l'essai de renommage de type traite.
-TAILLE_ESSAI = 3
 
 # Nord local par groupe de batiments, en degres. PREVU, NON ACTIF : {"SE": 6.6}
 # ferait pivoter les centres des colonnes de SE avant le tri. Personne n'a
@@ -191,10 +193,7 @@ NON_DETACHEE = collaboratif and detache is not True
 
 MODES = [u"1 - Simuler (lecture seule, aucune ecriture)",
          u"2 - Renommer les familles (ECRIT dans la maquette)",
-         u"3 - Noms de type : ESSAI sur {0} volumes (ECRIT)".format(TAILLE_ESSAI),
-         u"4 - Noms de type : tous les volumes (ECRIT)",
-         u"5 - DIAGNOSTIC : essai instrumente sur {0} familles (ECRIT)".format(
-             TAILLE_ESSAI)]
+         u"3 - Noms de type -> \"{0}\" (ECRIT)".format(NOM_TYPE_VOULU)]
 
 # forms.alert n'affiche QUE QUATRE options : il s'appuie sur le TaskDialog de
 # Revit, dont TaskDialogCommandLinkId s'arrete a CommandLink4, et pyRevit
@@ -221,9 +220,7 @@ if not mode:
     script.exit()
 
 ECRITURE = not mode.startswith(u"1")
-MODE_TYPES = mode.startswith(u"3") or mode.startswith(u"4")
-ESSAI = mode.startswith(u"3")
-DIAGNOSTIC = mode.startswith(u"5")
+MODE_TYPES = mode.startswith(u"3")
 
 if ECRITURE and NON_DETACHEE and not AUTORISER_NON_DETACHE:
     forms.alert(
@@ -501,173 +498,6 @@ if BLOQUANT:
     script.exit()
 
 # --------------------------------------------------------------------------
-# 4 bis. DIAGNOSTIC - mode 5, trois familles, tout instrumente
-#
-# Mesure du 2026-09-24 : le mode 2 renomme 202 familles, la relecture
-# immediate rend 202/202 au nom voulu, et pourtant l'audit suivant lit les
-# ANCIENS noms sur les 202. Les cinq porteurs du nom sont d'accord entre eux
-# (sonde du meme jour), donc ce n'est pas "j'ecris le mauvais champ".
-#
-# HYPOTHESE A TESTER ICI : renommer une famille in situ REMPLACE l'element
-# Family. L'identifiant mis en cache designerait alors un element devenu
-# orphelin - j'ecrirais dedans, je le relirais, j'y verrais mon nouveau nom,
-# pendant que les instances continueraient de pointer ailleurs. Ce mode
-# relit donc la famille DEUX fois apres chaque ecriture : par l'identifiant
-# mis en cache, ET par l'instance. Si les deux divergent, la cause est la.
-# --------------------------------------------------------------------------
-
-if DIAGNOSTIC:
-
-    from Autodesk.Revit.DB import BuiltInParameter
-
-    cibles = ordonnes[:TAILLE_ESSAI]
-
-    def etat(v, moment):
-        """Une ligne de tableau : ce que chaque chemin de lecture rend."""
-        el = doc.GetElement(v["eid"])
-        par_instance_id = u"?"
-        par_instance_nom = u"?"
-        par_cache_nom = u"?"
-        param_nom = u"?"
-        try:
-            famille_fraiche = el.Symbol.Family
-            par_instance_id = u"{0}".format(id_de(famille_fraiche.Id))
-            par_instance_nom = famille_fraiche.Name
-        except Exception as err:
-            par_instance_nom = u"(illisible : {0})".format(err)
-        try:
-            famille_cache = doc.GetElement(element_famille[v["fid"]])
-            par_cache_nom = (famille_cache.Name if famille_cache is not None
-                             else u"(element introuvable)")
-        except Exception as err:
-            par_cache_nom = u"(illisible : {0})".format(err)
-        try:
-            p = el.Symbol.get_Parameter(
-                BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
-            param_nom = p.AsString() if p is not None else u"(absent)"
-        except Exception as err:
-            param_nom = u"(illisible : {0})".format(err)
-        return (u"| {0} | `{1}` | `{2}` | `{3}` | `{4}` |".format(
-            moment, par_instance_id, par_instance_nom, par_cache_nom,
-            param_nom))
-
-    out.print_md(u"---")
-    out.print_md(u"# DIAGNOSTIC - essai instrumente sur {0} famille(s)".format(
-        len(cibles)))
-    out.print_md(
-        u"Trois chemins de lecture, cote a cote, a chaque etape :\n\n"
-        u"- **par l'instance** : `instance.Symbol.Family` - refait a chaque "
-        u"lecture, c'est ce que voient l'audit et l'infobulle ;\n"
-        u"- **par le cache** : `doc.GetElement(id releve AVANT)` - c'est ce "
-        u"que le mode 2 ecrit, et ce que sa relecture lit ;\n"
-        u"- **le parametre** `SYMBOL_FAMILY_NAME_PARAM` du type.\n\n"
-        u"S'ils divergent, la cause est trouvee.")
-
-    dialogue = TaskDialog(u"bimflow - Diagnostic de renommage")
-    dialogue.MainInstruction = u"Renommer {0} famille(s), pas a pas ?".format(
-        len(cibles))
-    dialogue.MainContent = (
-        u"Maquette : {0}\n\n"
-        u"Une transaction PAR famille, et une relecture par trois chemins "
-        u"apres chaque etape. Puis une regeneration, et une relecture de "
-        u"plus.\n\n"
-        u"Trois familles seulement : reversible a la main en une minute.".format(
-            doc.Title)
-    )
-    dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |
-                              TaskDialogCommonButtons.No)
-    dialogue.DefaultButton = TaskDialogResult.No
-    if dialogue.Show() != TaskDialogResult.Yes:
-        out.print_md(u"**Annule.** Rien n'a ete ecrit.")
-        script.exit()
-
-    ENTETE = (u"| Moment | Id famille vu par l'instance | Nom par l'instance "
-              u"| Nom par le cache | SYMBOL_FAMILY_NAME_PARAM |\n"
-              u"|---|---|---|---|---|")
-
-    for v in cibles:
-        out.print_md(u"## Volume `{0}` -> `{1}`".format(v["id"], v["nouveau"]))
-        lignes = [ENTETE, etat(v, u"**avant**")]
-
-        transaction = Transaction(doc, u"bimflow - diagnostic renommage")
-        depart = transaction.Start()
-        if depart != TransactionStatus.Started:
-            out.print_md(u"**Transaction refusee** : `{0}`".format(depart))
-            continue
-
-        erreur = None
-        try:
-            famille = doc.GetElement(element_famille[v["fid"]])
-            famille.Name = v["nouveau"]
-        except Exception as err:
-            erreur = err
-
-        if erreur is None:
-            lignes.append(etat(v, u"apres `Set`, AVANT commit"))
-            etat_commit = transaction.Commit()
-            lignes.append(etat(v, u"apres `Commit` ({0})".format(etat_commit)))
-        else:
-            transaction.RollBack()
-            lignes.append(u"| **ECHEC du Set** | | `{0}` | | |".format(erreur))
-
-        out.print_md(u"\n".join(lignes))
-
-    # --- une regeneration, puis une derniere lecture ----------------------
-    out.print_md(u"## Apres une regeneration du document")
-    transaction = Transaction(doc, u"bimflow - diagnostic regeneration")
-    etat_regen = u"(non ouverte)"
-    if transaction.Start() == TransactionStatus.Started:
-        try:
-            doc.Regenerate()
-            etat_regen = u"{0}".format(transaction.Commit())
-        except Exception as err:
-            transaction.RollBack()
-            etat_regen = u"echec : {0}".format(err)
-    lignes = [ENTETE]
-    for v in cibles:
-        lignes.append(etat(v, u"volume `{0}`".format(v["id"])))
-    out.print_md(u"Regeneration : `{0}`".format(etat_regen))
-    out.print_md(u"\n".join(lignes))
-
-    # --- TEST B : le parametre du type est-il inscriptible ? --------------
-    out.print_md(u"## Le parametre `SYMBOL_FAMILY_NAME_PARAM` est-il inscriptible ?")
-    v = cibles[0]
-    el = doc.GetElement(v["eid"])
-    try:
-        p = el.Symbol.get_Parameter(BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
-    except Exception as err:
-        p = None
-        out.print_md(u"Parametre illisible : `{0}`".format(err))
-    if p is not None:
-        out.print_md(u"- `IsReadOnly` : **{0}**".format(p.IsReadOnly))
-        if not p.IsReadOnly:
-            transaction = Transaction(doc, u"bimflow - diagnostic param famille")
-            if transaction.Start() == TransactionStatus.Started:
-                try:
-                    rendu = p.Set(v["nouveau"])
-                    etat_c = transaction.Commit()
-                    out.print_md(u"- `Set()` a rendu **{0}**, commit `{1}`".format(
-                        rendu, etat_c))
-                except Exception as err:
-                    transaction.RollBack()
-                    out.print_md(u"- `Set()` a leve : `{0}` - tout annule".format(err))
-            out.print_md(u"\n".join([ENTETE, etat(v, u"apres ecriture du parametre")]))
-        else:
-            out.print_md(
-                u"- en lecture seule : ce n'est donc pas par la que "
-                u"l'interface renomme.")
-
-    out.print_md(
-        u"---\n> **Ce mode ne se termine plus par `script.exit()`.** C'est "
-        u"l'objet de l'essai du 2026-09-24 : `script.exit()` appelle "
-        u"`sys.exit()`, donc leve `SystemExit`. Une commande externe Revit "
-        u"qui rend *Cancelled* fait ANNULER PAR REVIT tout ce qu'elle a "
-        u"modifie. Les deux modes qui sortaient ainsi - familles et "
-        u"diagnostic - voyaient leurs ecritures defaites ; les deux qui "
-        u"tombaient a la fin du fichier - les noms de type - ont persiste. "
-        u"Relancer la sonde pour trancher."
-    )
-
 # --------------------------------------------------------------------------
 # 5. Renommage des FAMILLES - deux passes, un groupe de transactions
 #
@@ -680,7 +510,7 @@ if DIAGNOSTIC:
 # refus, annulation, lot vide : la, une annulation par Revit n'enleve rien.
 # --------------------------------------------------------------------------
 
-if not MODE_TYPES and not DIAGNOSTIC:
+if not MODE_TYPES:
 
     a_renommer = {}     # fid -> (avant, apres)
     for v in ordonnes:
@@ -832,45 +662,31 @@ if not MODE_TYPES and not DIAGNOSTIC:
     out.print_md(u"## Export du avant / apres, releve APRES ecriture")
     ecrire_csv(reels)
     out.print_md(
-        u"> **Suite.** Passer **Audit volumes** pour verifier, puis **MAJ "
-        u"params volumes**. Les noms de TYPE se traitent a part, par le mode "
-        u"3 (essai sur {0}) avant le mode 4.".format(TAILLE_ESSAI)
+        u"> **Suite.** Passer **Audit volumes** pour verifier - dans une "
+        u"execution SEPAREE, c'est elle qui prouve que l'ecriture a tenu - "
+        u"puis **MAJ params volumes**. Les noms de type se traitent a part, "
+        u"par le mode 3."
     )
     # PAS de script.exit() ici : il ferait rendre Cancelled a la commande, et
     # Revit annulerait les 202 renommages qu'on vient de commiter.
 
 # --------------------------------------------------------------------------
 # 6. Noms de TYPE - l'essai d'abord, et il rapporte ce qu'il observe
+# 6. Noms de TYPE - une seule etape depuis le 2026-09-24
 # --------------------------------------------------------------------------
-
-# L'ESSAI D'ABORD, ET LE SCRIPT LE VERIFIE. Le mode 4 ne part sur les 202
-# que si au moins un volume porte deja le nom de type voulu - c'est-a-dire
-# si le mode 3 est passe. Sans cette garde, un clic de trop sautait
-# exactement l'etape qui protege des 202.
-if MODE_TYPES and not ESSAI:
-    temoins = [v for v in ordonnes if v["type"] == NOM_TYPE_VOULU]
-    if not temoins:
-        out.print_md(u"---")
-        out.print_md(
-            u"# MODE 4 REFUSE - l'essai n'a pas eu lieu\n"
-            u"Aucun volume ne porte encore le nom de type `{0}` : le mode 3 "
-            u"n'est pas passe, ou il a echoue.\n\n"
-            u"**Ce que l'essai protege.** Personne n'a mesure si Revit "
-            u"accepte deux types homonymes dans deux familles in situ "
-            u"distinctes. S'il refuse, mieux vaut l'apprendre sur {1} volumes "
-            u"que sur {2}.\n\n"
-            u"Relancer le bouton et choisir le **mode 3**.".format(
-                NOM_TYPE_VOULU, TAILLE_ESSAI, len(ordonnes))
-        )
-        script.exit()
-
-# Les modes 1, 2 et 5 n'entrent pas ici. Avant le 2026-09-24, ils en
-# sortaient par script.exit() - ce qui faisait rendre Cancelled a la commande
-# et annulait leurs ecritures. On garde donc la porte fermee par un test,
-# jamais par une sortie.
+#
+# L'essai sur trois volumes a ete supprime : il existait pour une inconnue
+# qui est levee. MESURE du 2026-09-24 sur The Study : Revit accepte 202 types
+# homonymes dans 202 familles in situ distinctes, et les noms tiennent a
+# travers sauvegardes, changements de fenetre et executions successives.
+#
+# Les modes 1 et 2 n'entrent pas ici. Avant le 2026-09-24, ils en sortaient
+# par script.exit() - ce qui faisait rendre Cancelled a la commande et
+# annulait leurs ecritures. La porte est donc fermee par un test, jamais par
+# une sortie.
 if MODE_TYPES:
 
-    cibles = ordonnes[:TAILLE_ESSAI] if ESSAI else ordonnes
+    cibles = ordonnes
     deja = [v for v in cibles if v["type"] == NOM_TYPE_VOULU]
     a_faire = [v for v in cibles if v["type"] != NOM_TYPE_VOULU]
 
@@ -878,12 +694,12 @@ if MODE_TYPES:
     out.print_md(u"# Noms de type -> `{0}`".format(NOM_TYPE_VOULU))
     out.print_md(
         u"{0} volume(s) vise(s), dont **{1}** portent deja ce nom de type.\n\n"
-        u"> **Ce qui est en jeu, et qui n'est PAS connu.** Chaque volume in situ "
-        u"est sa propre famille : deux types homonymes vivraient donc dans deux "
-        u"familles distinctes, ce que Revit devrait accepter. Mais il peut "
-        u"imposer une unicite plus large sur les familles in situ. **Personne ne "
-        u"l'a mesure.** C'est l'objet de cet essai.".format(
-            len(cibles), len(deja))
+        u"> **Ce qui est acquis.** Chaque volume in situ est sa propre "
+        u"famille, et Revit accepte des types homonymes dans des familles "
+        u"distinctes : mesure du 2026-09-24 sur The Study, 202 types nommes "
+        u"`{2}` dans 202 familles, noms tenus a travers sauvegardes et "
+        u"executions successives.".format(
+            len(cibles), len(deja), NOM_TYPE_VOULU)
     )
 
     if not a_faire:
@@ -895,14 +711,10 @@ if MODE_TYPES:
         len(a_faire), NOM_TYPE_VOULU)
     dialogue.MainContent = (
         u"Maquette : {0}\n\n"
-        u"{1}\n\n"
-        u"Comportement de Revit INCONNU sur ce point : si le deuxieme type "
-        u"homonyme est refuse, le script s'arrete, annule tout, et rapporte "
-        u"l'erreur exacte. Il n'essaiera aucun repli.".format(
-            doc.Title,
-            u"ESSAI sur {0} volume(s) - a lire avant de traiter les {1}.".format(
-                len(a_faire), len(ordonnes)) if ESSAI else
-            u"TOUS les volumes. A ne lancer qu'APRES un essai concluant.")
+        u"{1} volume(s) a traiter, sur {2}. Les autres portent deja ce nom.\n\n"
+        u"Une seule transaction : si un renommage echoue, TOUT est annule et "
+        u"l'erreur exacte est rapportee. Aucun repli n'est tente.".format(
+            doc.Title, len(a_faire), len(ordonnes))
     )
     dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |
                               TaskDialogCommonButtons.No)
@@ -934,7 +746,7 @@ if MODE_TYPES:
     else:
         transaction.RollBack()
 
-    out.print_md(u"## Resultat de l'{0}".format(u"essai" if ESSAI else u"execution"))
+    out.print_md(u"## Resultat de l'execution")
 
     if echec is not None:
         out.print_md(
@@ -971,16 +783,8 @@ if MODE_TYPES:
             lien_de(v["eid"]), texte(v["type"]), texte(reels.get(v["id"]))))
     out.print_md(u"\n".join(lignes))
 
-    if ESSAI:
-        out.print_md(
-            u"> **Essai concluant sur {0} volume(s) : Revit a accepte des types "
-            u"homonymes dans des familles in situ distinctes.** C'est un fait "
-            u"mesure ce jour, sur cette maquette - pas une regle generale tant "
-            u"qu'il n'est pas retrouve ailleurs.\n\n"
-            u"> Le mode 4 traite les {1} volumes.".format(
-                len(a_faire), len(ordonnes))
-        )
-    else:
-        out.print_md(
-            u"> **Suite.** Passer **Audit volumes**, puis **MAJ params volumes**."
-        )
+    out.print_md(
+        u"> **Suite.** Passer **Audit volumes** - dans une execution SEPAREE, "
+        u"c'est elle qui prouve que l'ecriture a tenu - puis **MAJ params "
+        u"volumes**."
+    )
