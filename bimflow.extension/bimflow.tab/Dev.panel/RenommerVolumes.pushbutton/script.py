@@ -658,21 +658,29 @@ if DIAGNOSTIC:
                 u"l'interface renomme.")
 
     out.print_md(
-        u"---\n> **Comment lire ce tableau.** Si l'identifiant de famille vu "
-        u"par l'instance CHANGE apres le renommage, l'element `Family` est "
-        u"remplace : mon cache pointe alors sur un orphelin, et c'est la "
-        u"cause. S'il ne change pas mais que les deux noms divergent, c'est "
-        u"la lecture par le cache qui ment. S'ils restent d'accord et que le "
-        u"nom retombe apres la regeneration, Revit restaure le nom depuis "
-        u"ailleurs, et il faudra chercher ou."
+        u"---\n> **Ce mode ne se termine plus par `script.exit()`.** C'est "
+        u"l'objet de l'essai du 2026-09-24 : `script.exit()` appelle "
+        u"`sys.exit()`, donc leve `SystemExit`. Une commande externe Revit "
+        u"qui rend *Cancelled* fait ANNULER PAR REVIT tout ce qu'elle a "
+        u"modifie. Les deux modes qui sortaient ainsi - familles et "
+        u"diagnostic - voyaient leurs ecritures defaites ; les deux qui "
+        u"tombaient a la fin du fichier - les noms de type - ont persiste. "
+        u"Relancer la sonde pour trancher."
     )
-    script.exit()
 
 # --------------------------------------------------------------------------
 # 5. Renommage des FAMILLES - deux passes, un groupe de transactions
+#
+# AUCUN script.exit() APRES UNE ECRITURE, dans ce bloc ni dans les suivants.
+# Mesure du 2026-09-24 : script.exit() appelle sys.exit(), leve SystemExit,
+# et la commande externe rend alors Cancelled - ce qui fait ANNULER PAR REVIT
+# tout ce qu'elle a modifie. Les blocs qui sortaient ainsi voyaient leurs
+# renommages defaits ; ceux qui tombaient a la fin du fichier ont persiste.
+# Les sorties prematurees ne sont conservees que la ou RIEN n'a ete ecrit -
+# refus, annulation, lot vide : la, une annulation par Revit n'enleve rien.
 # --------------------------------------------------------------------------
 
-if not MODE_TYPES:
+if not MODE_TYPES and not DIAGNOSTIC:
 
     a_renommer = {}     # fid -> (avant, apres)
     for v in ordonnes:
@@ -828,7 +836,8 @@ if not MODE_TYPES:
         u"params volumes**. Les noms de TYPE se traitent a part, par le mode "
         u"3 (essai sur {0}) avant le mode 4.".format(TAILLE_ESSAI)
     )
-    script.exit()
+    # PAS de script.exit() ici : il ferait rendre Cancelled a la commande, et
+    # Revit annulerait les 202 renommages qu'on vient de commiter.
 
 # --------------------------------------------------------------------------
 # 6. Noms de TYPE - l'essai d'abord, et il rapporte ce qu'il observe
@@ -838,7 +847,7 @@ if not MODE_TYPES:
 # que si au moins un volume porte deja le nom de type voulu - c'est-a-dire
 # si le mode 3 est passe. Sans cette garde, un clic de trop sautait
 # exactement l'etape qui protege des 202.
-if not ESSAI:
+if MODE_TYPES and not ESSAI:
     temoins = [v for v in ordonnes if v["type"] == NOM_TYPE_VOULU]
     if not temoins:
         out.print_md(u"---")
@@ -855,117 +864,123 @@ if not ESSAI:
         )
         script.exit()
 
-cibles = ordonnes[:TAILLE_ESSAI] if ESSAI else ordonnes
-deja = [v for v in cibles if v["type"] == NOM_TYPE_VOULU]
-a_faire = [v for v in cibles if v["type"] != NOM_TYPE_VOULU]
+# Les modes 1, 2 et 5 n'entrent pas ici. Avant le 2026-09-24, ils en
+# sortaient par script.exit() - ce qui faisait rendre Cancelled a la commande
+# et annulait leurs ecritures. On garde donc la porte fermee par un test,
+# jamais par une sortie.
+if MODE_TYPES:
 
-out.print_md(u"---")
-out.print_md(u"# Noms de type -> `{0}`".format(NOM_TYPE_VOULU))
-out.print_md(
-    u"{0} volume(s) vise(s), dont **{1}** portent deja ce nom de type.\n\n"
-    u"> **Ce qui est en jeu, et qui n'est PAS connu.** Chaque volume in situ "
-    u"est sa propre famille : deux types homonymes vivraient donc dans deux "
-    u"familles distinctes, ce que Revit devrait accepter. Mais il peut "
-    u"imposer une unicite plus large sur les familles in situ. **Personne ne "
-    u"l'a mesure.** C'est l'objet de cet essai.".format(
-        len(cibles), len(deja))
-)
+    cibles = ordonnes[:TAILLE_ESSAI] if ESSAI else ordonnes
+    deja = [v for v in cibles if v["type"] == NOM_TYPE_VOULU]
+    a_faire = [v for v in cibles if v["type"] != NOM_TYPE_VOULU]
 
-if not a_faire:
-    out.print_md(u"*Rien a faire : tous portent deja le nom voulu.*")
-    script.exit()
-
-dialogue = TaskDialog(u"bimflow - Noms de type")
-dialogue.MainInstruction = u"Renommer le type de {0} volume(s) en \"{1}\" ?".format(
-    len(a_faire), NOM_TYPE_VOULU)
-dialogue.MainContent = (
-    u"Maquette : {0}\n\n"
-    u"{1}\n\n"
-    u"Comportement de Revit INCONNU sur ce point : si le deuxieme type "
-    u"homonyme est refuse, le script s'arrete, annule tout, et rapporte "
-    u"l'erreur exacte. Il n'essaiera aucun repli.".format(
-        doc.Title,
-        u"ESSAI sur {0} volume(s) - a lire avant de traiter les {1}.".format(
-            len(a_faire), len(ordonnes)) if ESSAI else
-        u"TOUS les volumes. A ne lancer qu'APRES un essai concluant.")
-)
-dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |
-                          TaskDialogCommonButtons.No)
-dialogue.DefaultButton = TaskDialogResult.No
-if dialogue.Show() != TaskDialogResult.Yes:
-    out.print_md(u"**Annule par l'utilisateur.** Rien n'a ete ecrit.")
-    script.exit()
-
-journal = []
-echec = None
-transaction = Transaction(doc, u"bimflow - noms de type des volumes")
-if transaction.Start() != TransactionStatus.Started:
-    forms.alert(u"Revit a refuse d'ouvrir la transaction.", exitscript=True)
-
-try:
-    for v in a_faire:
-        symbole = doc.GetElement(element_type[v["id"]])
-        if symbole is None:
-            raise Exception(u"type du volume {0} introuvable".format(v["id"]))
-        journal.append((v["id"], v["type"]))
-        symbole.Name = NOM_TYPE_VOULU
-except Exception as err:
-    echec = err
-
-if echec is None:
-    etat = transaction.Commit()
-    if etat != TransactionStatus.Committed:
-        echec = u"Commit refuse par Revit (etat : {0})".format(etat)
-else:
-    transaction.RollBack()
-
-out.print_md(u"## Resultat de l'{0}".format(u"essai" if ESSAI else u"execution"))
-
-if echec is not None:
+    out.print_md(u"---")
+    out.print_md(u"# Noms de type -> `{0}`".format(NOM_TYPE_VOULU))
     out.print_md(
-        u"### REVIT A REFUSE - tout a ete annule\n"
-        u"Erreur exacte, telle que l'API l'a rendue :\n\n"
-        u"```\n{0}\n```\n\n"
-        u"**{1} type(s) avaient ete traites avant le refus.** L'hypothese "
-        u"\"deux types homonymes dans deux familles in situ distinctes sont "
-        u"acceptes\" est donc FAUSSE, au moins dans ce cas. C'est un fait "
-        u"mesure, a porter en fiche.\n\n"
-        u"Aucun repli n'est tente : le nom de type voulu se decidera en "
-        u"connaissance de cause.".format(echec, len(journal))
+        u"{0} volume(s) vise(s), dont **{1}** portent deja ce nom de type.\n\n"
+        u"> **Ce qui est en jeu, et qui n'est PAS connu.** Chaque volume in situ "
+        u"est sa propre famille : deux types homonymes vivraient donc dans deux "
+        u"familles distinctes, ce que Revit devrait accepter. Mais il peut "
+        u"imposer une unicite plus large sur les familles in situ. **Personne ne "
+        u"l'a mesure.** C'est l'objet de cet essai.".format(
+            len(cibles), len(deja))
     )
-    script.exit()
 
-# relecture : ce que les types portent VRAIMENT
-reels = {}
-for v in cibles:
-    symbole = doc.GetElement(element_type[v["id"]])
+    if not a_faire:
+        out.print_md(u"*Rien a faire : tous portent deja le nom voulu.*")
+        script.exit()
+
+    dialogue = TaskDialog(u"bimflow - Noms de type")
+    dialogue.MainInstruction = u"Renommer le type de {0} volume(s) en \"{1}\" ?".format(
+        len(a_faire), NOM_TYPE_VOULU)
+    dialogue.MainContent = (
+        u"Maquette : {0}\n\n"
+        u"{1}\n\n"
+        u"Comportement de Revit INCONNU sur ce point : si le deuxieme type "
+        u"homonyme est refuse, le script s'arrete, annule tout, et rapporte "
+        u"l'erreur exacte. Il n'essaiera aucun repli.".format(
+            doc.Title,
+            u"ESSAI sur {0} volume(s) - a lire avant de traiter les {1}.".format(
+                len(a_faire), len(ordonnes)) if ESSAI else
+            u"TOUS les volumes. A ne lancer qu'APRES un essai concluant.")
+    )
+    dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |
+                              TaskDialogCommonButtons.No)
+    dialogue.DefaultButton = TaskDialogResult.No
+    if dialogue.Show() != TaskDialogResult.Yes:
+        out.print_md(u"**Annule par l'utilisateur.** Rien n'a ete ecrit.")
+        script.exit()
+
+    journal = []
+    echec = None
+    transaction = Transaction(doc, u"bimflow - noms de type des volumes")
+    if transaction.Start() != TransactionStatus.Started:
+        forms.alert(u"Revit a refuse d'ouvrir la transaction.", exitscript=True)
+
     try:
-        reels[v["id"]] = symbole.Name if symbole is not None else u"(introuvable)"
+        for v in a_faire:
+            symbole = doc.GetElement(element_type[v["id"]])
+            if symbole is None:
+                raise Exception(u"type du volume {0} introuvable".format(v["id"]))
+            journal.append((v["id"], v["type"]))
+            symbole.Name = NOM_TYPE_VOULU
     except Exception as err:
-        reels[v["id"]] = u"(illisible : {0})".format(err)
-conformes = len([v for v in cibles if reels.get(v["id"]) == NOM_TYPE_VOULU])
+        echec = err
 
-out.print_md(
-    u"**{0} type(s) renomme(s)**, et **{1} sur {2}** portent bien "
-    u"`{3}` a la relecture.".format(
-        len(a_faire), conformes, len(cibles), NOM_TYPE_VOULU)
-)
-lignes = [u"| Volume | Type avant | Type apres |", u"|---|---|---|"]
-for v in cibles:
-    lignes.append(u"| {0} | `{1}` | `{2}` |".format(
-        lien_de(v["eid"]), texte(v["type"]), texte(reels.get(v["id"]))))
-out.print_md(u"\n".join(lignes))
+    if echec is None:
+        etat = transaction.Commit()
+        if etat != TransactionStatus.Committed:
+            echec = u"Commit refuse par Revit (etat : {0})".format(etat)
+    else:
+        transaction.RollBack()
 
-if ESSAI:
+    out.print_md(u"## Resultat de l'{0}".format(u"essai" if ESSAI else u"execution"))
+
+    if echec is not None:
+        out.print_md(
+            u"### REVIT A REFUSE - tout a ete annule\n"
+            u"Erreur exacte, telle que l'API l'a rendue :\n\n"
+            u"```\n{0}\n```\n\n"
+            u"**{1} type(s) avaient ete traites avant le refus.** L'hypothese "
+            u"\"deux types homonymes dans deux familles in situ distinctes sont "
+            u"acceptes\" est donc FAUSSE, au moins dans ce cas. C'est un fait "
+            u"mesure, a porter en fiche.\n\n"
+            u"Aucun repli n'est tente : le nom de type voulu se decidera en "
+            u"connaissance de cause.".format(echec, len(journal))
+        )
+        script.exit()
+
+    # relecture : ce que les types portent VRAIMENT
+    reels = {}
+    for v in cibles:
+        symbole = doc.GetElement(element_type[v["id"]])
+        try:
+            reels[v["id"]] = symbole.Name if symbole is not None else u"(introuvable)"
+        except Exception as err:
+            reels[v["id"]] = u"(illisible : {0})".format(err)
+    conformes = len([v for v in cibles if reels.get(v["id"]) == NOM_TYPE_VOULU])
+
     out.print_md(
-        u"> **Essai concluant sur {0} volume(s) : Revit a accepte des types "
-        u"homonymes dans des familles in situ distinctes.** C'est un fait "
-        u"mesure ce jour, sur cette maquette - pas une regle generale tant "
-        u"qu'il n'est pas retrouve ailleurs.\n\n"
-        u"> Le mode 4 traite les {1} volumes.".format(
-            len(a_faire), len(ordonnes))
+        u"**{0} type(s) renomme(s)**, et **{1} sur {2}** portent bien "
+        u"`{3}` a la relecture.".format(
+            len(a_faire), conformes, len(cibles), NOM_TYPE_VOULU)
     )
-else:
-    out.print_md(
-        u"> **Suite.** Passer **Audit volumes**, puis **MAJ params volumes**."
-    )
+    lignes = [u"| Volume | Type avant | Type apres |", u"|---|---|---|"]
+    for v in cibles:
+        lignes.append(u"| {0} | `{1}` | `{2}` |".format(
+            lien_de(v["eid"]), texte(v["type"]), texte(reels.get(v["id"]))))
+    out.print_md(u"\n".join(lignes))
+
+    if ESSAI:
+        out.print_md(
+            u"> **Essai concluant sur {0} volume(s) : Revit a accepte des types "
+            u"homonymes dans des familles in situ distinctes.** C'est un fait "
+            u"mesure ce jour, sur cette maquette - pas une regle generale tant "
+            u"qu'il n'est pas retrouve ailleurs.\n\n"
+            u"> Le mode 4 traite les {1} volumes.".format(
+                len(a_faire), len(ordonnes))
+        )
+    else:
+        out.print_md(
+            u"> **Suite.** Passer **Audit volumes**, puis **MAJ params volumes**."
+        )
