@@ -231,6 +231,37 @@ Le rapport imprime désormais, pour chaque cas, **l'aire d'intersection des
 emprises et la hauteur de recouvrement Z** : le diagnostic se relit sans
 avoir à y revenir.
 
+## Deux `FLOOR` de même nom dans un même `BUILDING`
+
+Le générateur en produit **14 couples, dans 12 BUILDING** sur The Study, tous
+`ENTRETOIT` sous `TOITURE`, contigus et sans recouvrement 3D. Deux `BUILDING`
+en portent **quatre** — ceux qui regroupent deux zones.
+
+**Ce qui est acquis** *(Bruno, 2026-09-24)* : **l'import Ivion les accepte**.
+Ce n'est donc pas un obstacle, et C7 dit même que des étages de même nom
+s'affichent **ensemble** — ce qui est peut-être exactement ce qu'on veut d'un
+entretoit et de sa toiture.
+
+**Ce qui n'est pas connu, et qui se mesure en sandbox** : ce que la **carte 2D
+de navigation** en fait. La question recoupe l'inconnue n° 1 de
+`SITE_MODEL.md` §7, côté `ivion_api` : la carte 2D d'un étage semble se
+construire sur la **tranche basse** du nuage. Or nos couples `ROOF` couvrent
+**15,705 → 21,735 m** d'un seul nom : si la carte se construit sur le bas, le
+niveau `ROOF` d'un visiteur montrerait **l'entretoit**, pas la toiture.
+
+À regarder, dans cet ordre, sur un site brouillon :
+
+1. importer, puis ouvrir la vue 2D d'un `ROOF` sur un `BUILDING` à deux
+   `FLOOR` homonymes — `MI_Amg_Am_3m_4mg` est le cas simple ;
+2. puis sur un `BUILDING` qui en porte **quatre** —
+   `MI_Am_Em_3m_6m+MI_Dm_Emg_6m_7m` ou `MI_Bc_Ec_7m_1c+SC_Amg_Cm_6m_7m` ;
+3. comparer avec un `ROOF` sans doublon, par exemple `JU_Bj-Fj-1j-5j`.
+
+**Si la carte est fausse**, le remède est déjà en place : `--suffixer-doublons`
+nomme le second `ROOF_sup`, ce qui en fait deux niveaux de visite distincts.
+C'est un choix d'usage — deux niveaux à parcourir contre un seul dont la carte
+peut mentir — et il se tranche sur ce qu'on aura vu, pas avant.
+
 ## Repère et géoréférencement
 
 Par défaut, **aucune transformation** : la sortie est en mètres dans le
