@@ -192,7 +192,9 @@ NON_DETACHEE = collaboratif and detache is not True
 MODES = [u"1 - Simuler (lecture seule, aucune ecriture)",
          u"2 - Renommer les familles (ECRIT dans la maquette)",
          u"3 - Noms de type : ESSAI sur {0} volumes (ECRIT)".format(TAILLE_ESSAI),
-         u"4 - Noms de type : tous les volumes (ECRIT)"]
+         u"4 - Noms de type : tous les volumes (ECRIT)",
+         u"5 - DIAGNOSTIC : essai instrumente sur {0} familles (ECRIT)".format(
+             TAILLE_ESSAI)]
 
 mode = forms.alert(
     u"Volumes de zone - que faire ?\n\n"
@@ -207,6 +209,7 @@ if not mode:
 ECRITURE = not mode.startswith(u"1")
 MODE_TYPES = mode.startswith(u"3") or mode.startswith(u"4")
 ESSAI = mode.startswith(u"3")
+DIAGNOSTIC = mode.startswith(u"5")
 
 if ECRITURE and NON_DETACHEE and not AUTORISER_NON_DETACHE:
     forms.alert(
@@ -480,6 +483,174 @@ if BLOQUANT:
         u"motif, et le numero de chacun dependrait de qui a ete traite. Ces "
         u"cas se tranchent dans Revit, puis on relance.".format(
             len(non_resolus), len(collisions), len(familles_multiples))
+    )
+    script.exit()
+
+# --------------------------------------------------------------------------
+# 4 bis. DIAGNOSTIC - mode 5, trois familles, tout instrumente
+#
+# Mesure du 2026-09-24 : le mode 2 renomme 202 familles, la relecture
+# immediate rend 202/202 au nom voulu, et pourtant l'audit suivant lit les
+# ANCIENS noms sur les 202. Les cinq porteurs du nom sont d'accord entre eux
+# (sonde du meme jour), donc ce n'est pas "j'ecris le mauvais champ".
+#
+# HYPOTHESE A TESTER ICI : renommer une famille in situ REMPLACE l'element
+# Family. L'identifiant mis en cache designerait alors un element devenu
+# orphelin - j'ecrirais dedans, je le relirais, j'y verrais mon nouveau nom,
+# pendant que les instances continueraient de pointer ailleurs. Ce mode
+# relit donc la famille DEUX fois apres chaque ecriture : par l'identifiant
+# mis en cache, ET par l'instance. Si les deux divergent, la cause est la.
+# --------------------------------------------------------------------------
+
+if DIAGNOSTIC:
+
+    from Autodesk.Revit.DB import BuiltInParameter
+
+    cibles = ordonnes[:TAILLE_ESSAI]
+
+    def etat(v, moment):
+        """Une ligne de tableau : ce que chaque chemin de lecture rend."""
+        el = doc.GetElement(v["eid"])
+        par_instance_id = u"?"
+        par_instance_nom = u"?"
+        par_cache_nom = u"?"
+        param_nom = u"?"
+        try:
+            famille_fraiche = el.Symbol.Family
+            par_instance_id = u"{0}".format(id_de(famille_fraiche.Id))
+            par_instance_nom = famille_fraiche.Name
+        except Exception as err:
+            par_instance_nom = u"(illisible : {0})".format(err)
+        try:
+            famille_cache = doc.GetElement(element_famille[v["fid"]])
+            par_cache_nom = (famille_cache.Name if famille_cache is not None
+                             else u"(element introuvable)")
+        except Exception as err:
+            par_cache_nom = u"(illisible : {0})".format(err)
+        try:
+            p = el.Symbol.get_Parameter(
+                BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
+            param_nom = p.AsString() if p is not None else u"(absent)"
+        except Exception as err:
+            param_nom = u"(illisible : {0})".format(err)
+        return (u"| {0} | `{1}` | `{2}` | `{3}` | `{4}` |".format(
+            moment, par_instance_id, par_instance_nom, par_cache_nom,
+            param_nom))
+
+    out.print_md(u"---")
+    out.print_md(u"# DIAGNOSTIC - essai instrumente sur {0} famille(s)".format(
+        len(cibles)))
+    out.print_md(
+        u"Trois chemins de lecture, cote a cote, a chaque etape :\n\n"
+        u"- **par l'instance** : `instance.Symbol.Family` - refait a chaque "
+        u"lecture, c'est ce que voient l'audit et l'infobulle ;\n"
+        u"- **par le cache** : `doc.GetElement(id releve AVANT)` - c'est ce "
+        u"que le mode 2 ecrit, et ce que sa relecture lit ;\n"
+        u"- **le parametre** `SYMBOL_FAMILY_NAME_PARAM` du type.\n\n"
+        u"S'ils divergent, la cause est trouvee.")
+
+    dialogue = TaskDialog(u"bimflow - Diagnostic de renommage")
+    dialogue.MainInstruction = u"Renommer {0} famille(s), pas a pas ?".format(
+        len(cibles))
+    dialogue.MainContent = (
+        u"Maquette : {0}\n\n"
+        u"Une transaction PAR famille, et une relecture par trois chemins "
+        u"apres chaque etape. Puis une regeneration, et une relecture de "
+        u"plus.\n\n"
+        u"Trois familles seulement : reversible a la main en une minute.".format(
+            doc.Title)
+    )
+    dialogue.CommonButtons = (TaskDialogCommonButtons.Yes |
+                              TaskDialogCommonButtons.No)
+    dialogue.DefaultButton = TaskDialogResult.No
+    if dialogue.Show() != TaskDialogResult.Yes:
+        out.print_md(u"**Annule.** Rien n'a ete ecrit.")
+        script.exit()
+
+    ENTETE = (u"| Moment | Id famille vu par l'instance | Nom par l'instance "
+              u"| Nom par le cache | SYMBOL_FAMILY_NAME_PARAM |\n"
+              u"|---|---|---|---|---|")
+
+    for v in cibles:
+        out.print_md(u"## Volume `{0}` -> `{1}`".format(v["id"], v["nouveau"]))
+        lignes = [ENTETE, etat(v, u"**avant**")]
+
+        transaction = Transaction(doc, u"bimflow - diagnostic renommage")
+        depart = transaction.Start()
+        if depart != TransactionStatus.Started:
+            out.print_md(u"**Transaction refusee** : `{0}`".format(depart))
+            continue
+
+        erreur = None
+        try:
+            famille = doc.GetElement(element_famille[v["fid"]])
+            famille.Name = v["nouveau"]
+        except Exception as err:
+            erreur = err
+
+        if erreur is None:
+            lignes.append(etat(v, u"apres `Set`, AVANT commit"))
+            etat_commit = transaction.Commit()
+            lignes.append(etat(v, u"apres `Commit` ({0})".format(etat_commit)))
+        else:
+            transaction.RollBack()
+            lignes.append(u"| **ECHEC du Set** | | `{0}` | | |".format(erreur))
+
+        out.print_md(u"\n".join(lignes))
+
+    # --- une regeneration, puis une derniere lecture ----------------------
+    out.print_md(u"## Apres une regeneration du document")
+    transaction = Transaction(doc, u"bimflow - diagnostic regeneration")
+    etat_regen = u"(non ouverte)"
+    if transaction.Start() == TransactionStatus.Started:
+        try:
+            doc.Regenerate()
+            etat_regen = u"{0}".format(transaction.Commit())
+        except Exception as err:
+            transaction.RollBack()
+            etat_regen = u"echec : {0}".format(err)
+    lignes = [ENTETE]
+    for v in cibles:
+        lignes.append(etat(v, u"volume `{0}`".format(v["id"])))
+    out.print_md(u"Regeneration : `{0}`".format(etat_regen))
+    out.print_md(u"\n".join(lignes))
+
+    # --- TEST B : le parametre du type est-il inscriptible ? --------------
+    out.print_md(u"## Le parametre `SYMBOL_FAMILY_NAME_PARAM` est-il inscriptible ?")
+    v = cibles[0]
+    el = doc.GetElement(v["eid"])
+    try:
+        p = el.Symbol.get_Parameter(BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM)
+    except Exception as err:
+        p = None
+        out.print_md(u"Parametre illisible : `{0}`".format(err))
+    if p is not None:
+        out.print_md(u"- `IsReadOnly` : **{0}**".format(p.IsReadOnly))
+        if not p.IsReadOnly:
+            transaction = Transaction(doc, u"bimflow - diagnostic param famille")
+            if transaction.Start() == TransactionStatus.Started:
+                try:
+                    rendu = p.Set(v["nouveau"])
+                    etat_c = transaction.Commit()
+                    out.print_md(u"- `Set()` a rendu **{0}**, commit `{1}`".format(
+                        rendu, etat_c))
+                except Exception as err:
+                    transaction.RollBack()
+                    out.print_md(u"- `Set()` a leve : `{0}` - tout annule".format(err))
+            out.print_md(u"\n".join([ENTETE, etat(v, u"apres ecriture du parametre")]))
+        else:
+            out.print_md(
+                u"- en lecture seule : ce n'est donc pas par la que "
+                u"l'interface renomme.")
+
+    out.print_md(
+        u"---\n> **Comment lire ce tableau.** Si l'identifiant de famille vu "
+        u"par l'instance CHANGE apres le renommage, l'element `Family` est "
+        u"remplace : mon cache pointe alors sur un orphelin, et c'est la "
+        u"cause. S'il ne change pas mais que les deux noms divergent, c'est "
+        u"la lecture par le cache qui ment. S'ils restent d'accord et que le "
+        u"nom retombe apres la regeneration, Revit restaure le nom depuis "
+        u"ailleurs, et il faudra chercher ou."
     )
     script.exit()
 
