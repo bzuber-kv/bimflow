@@ -340,15 +340,18 @@ print("R1  contour constant sur toutes les tranches ... %s"
          if not zones_variables else "ECHEC (%d tranche(s))" % len(zones_variables)))
 
 # partition en plan : somme des aires de zone == aire de l'union
-contours_zone = [exportables(tr)[0] for tr in zones.values() if exportables(tr)]
+nommees = [(nom, exportables(tr)[0])
+           for nom, tr in zones.items() if exportables(tr)]
+contours_zone = [t for _nom, t in nommees]
 somme = sum(t["aire"] for t in contours_zone)
 union_aire = None
+emprises = None
 try:
     from shapely.geometry import Polygon
     from shapely.ops import unary_union
-    union = unary_union([Polygon([(x / 1000.0, y / 1000.0)
-                                  for x, y in t["coords"]])
-                         for t in contours_zone])
+    emprises = [(nom, Polygon([(x / 1000.0, y / 1000.0) for x, y in t["coords"]]))
+                for nom, t in nommees]
+    union = unary_union([p for _nom, p in emprises])
     union_aire = union.area
 except ImportError:
     print("partition en plan ............................. NON VERIFIEE "
@@ -361,6 +364,62 @@ if union_aire is not None:
     print("partition en plan ............................. %.2f m2 (zones) / "
           "%.2f m2 (union), ecart %.2f m2 %s"
           % (somme, union_aire, ecart, "OK" if ok_partition else "ECHEC"))
+
+
+# OU se recouvrent-elles ? Le total ne repare rien : ce qui sert, c'est le
+# NOM des deux zones et l'epaisseur de la bande commune. Une bande de 104 mm
+# sur quinze metres, c'est un bord trace sur la mauvaise face d'un mur ; un
+# rectangle de 1,2 m sur 1,2 m, c'est un vrai conflit de trace. Les deux se
+# corrigent dans Revit, mais pas du meme geste.
+# Ajoute le 2026-09-25 : le lanceur promettait que "les lignes rouges nomment
+# les volumes en cause", et pour la partition c'etait faux.
+SEUIL_CONTACT_M2 = 0.01     # en deca, c'est un contact d'aretes, pas un
+                            # recouvrement : deux zones mitoyennes se touchent
+
+
+def couples_qui_se_recouvrent(emprises_nommees):
+    """[(aire, zone A, zone B, epaisseur mm, longueur m)], du plus grand."""
+    trouves = []
+    for i, (nom_a, poly_a) in enumerate(emprises_nommees):
+        for nom_b, poly_b in emprises_nommees[i + 1:]:
+            if not poly_a.intersects(poly_b):
+                continue
+            commun = poly_a.intersection(poly_b)
+            if commun.area <= SEUIL_CONTACT_M2:
+                continue
+            x0, y0, x1, y1 = commun.bounds
+            cotes = sorted([x1 - x0, y1 - y0])
+            trouves.append((commun.area, nom_a, nom_b, cotes[0] * 1000.0,
+                            cotes[1]))
+    trouves.sort(reverse=True)
+    return trouves
+
+
+if not ok_partition and emprises is not None:
+    couples = couples_qui_se_recouvrent(emprises)
+    print()
+    if not couples:
+        print("AUCUN COUPLE NE SE RECOUVRE de plus de %.2f m2." % SEUIL_CONTACT_M2)
+        print("L'ecart vient donc d'un TROU entre les zones, pas d'un")
+        print("recouvrement : il manque un volume, ou un bord ne rejoint pas")
+        print("son voisin. Chercher le vide, pas le doublon.")
+    else:
+        print("ZONES QUI SE RECOUVRENT EN PLAN - a corriger dans Revit :")
+        print()
+        cumul = 0.0
+        for aire, nom_a, nom_b, epaisseur, longueur in couples:
+            cumul += aire
+            print("  %7.3f m2   %-24s X  %s" % (aire, nom_a, nom_b))
+            print("              bande de %.0f mm sur %.2f m"
+                  % (epaisseur, longueur))
+        print()
+        print("  %7.3f m2   TOTAL, pour un ecart de %.3f m2" % (cumul, ecart))
+        reste = ecart - cumul
+        if abs(reste) <= TOL_PARTITION_M2:
+            print("              le recouvrement explique tout l'ecart.")
+        else:
+            print("              il reste %.3f m2 : il y a AUSSI un trou."
+                  % reste)
 
 if refus:
     print()
@@ -381,14 +440,25 @@ if zones_variables:
 for zone, _etage in zones_variables:
     zones.pop(zone, None)
 
+# UN REFUS QUI SUIT UN RAPPORT S'IMPRIME SUR STDOUT, puis sort par un code.
+# Motif mesure le 2026-09-25 : sys.exit("message") ecrit sur STDERR, et quand
+# le lanceur fusionne les deux flux par 2>&1, PowerShell les reordonne - la
+# ligne REFUS tombait entre le troisieme et le quatrieme couple recouvrant,
+# donc au milieu de la liste qu'elle est censee conclure. Vider stdout avant
+# de sortir n'y change rien : le desordre vient de la fusion, pas du tampon.
+# Un seul flux, un seul ordre. Les deux sorties du debut de fichier (module
+# manquant, usage) restent sur stderr : rien ne les precede.
+
 if not zones:
-    sys.exit("\nREFUS : aucune zone exploitable. Rien n'est ecrit.")
+    print("\nREFUS : aucune zone exploitable. Rien n'est ecrit.")
+    sys.exit(1)
 
 if not ok_partition:
-    sys.exit("\nREFUS : la partition en plan ne ferme pas. Les zones se "
-             "recouvrent ou laissent un trou, et gen_sitemodel produirait un "
-             "site_model qu'Ivion refuse (C1, emprises secantes). Rien n'est "
-             "ecrit - reprendre les volumes dans Revit.")
+    print("\nREFUS : la partition en plan ne ferme pas. Les zones se "
+          "recouvrent ou laissent un trou, et gen_sitemodel produirait un "
+          "site_model qu'Ivion refuse (C1, emprises secantes). Rien n'est "
+          "ecrit - reprendre les volumes dans Revit.")
+    sys.exit(1)
 
 sortie = {
     "_entete": {

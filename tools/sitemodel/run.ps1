@@ -142,6 +142,22 @@ $echecs = @()
 
 function Lancer-Etape([string] $titre, [string[]] $arguments) {
     Ecrire-Titre $titre
+
+    # $ErrorActionPreference vaut "Stop" pour tout le script. Or, sous "Stop",
+    # une ligne de stderr que 2>&1 fait entrer dans le pipeline devient une
+    # erreur TERMINANTE : la fonction s'arrete AVANT la boucle d'affichage, et
+    # le refus qu'elle venait de lire n'est jamais imprime.
+    #
+    # MESURE du 2026-09-25. audit_to_zones a refuse proprement - partition en
+    # plan qui ne ferme pas, 3,03 m2 de recouvrement, message explicite et
+    # code 1. Ce qui s'est affiche a l'ecran : "python.exe : ...
+    # NativeCommandError", et rien d'autre. Le lanceur cachait exactement le
+    # message qu'il existe pour montrer.
+    #
+    # L'affectation ci-dessous est de PORTEE LOCALE a la fonction : le reste
+    # du script garde "Stop", et un vrai plantage arrete toujours tout.
+    $ErrorActionPreference = "Continue"
+
     $lignes = & $PYVENV @arguments 2>&1
     $code = $LASTEXITCODE
     foreach ($ligne in $lignes) {
