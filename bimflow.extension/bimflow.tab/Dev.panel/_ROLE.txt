@@ -1,0 +1,77 @@
+DEV — outils NON EPROUVES
+
+Role : porter les outils ecrits mais jamais executes dans Revit. Le statut
+« non eprouve » se lit ici, au ruban, et dans l'en-tete de chaque script ;
+il ne se porte plus par une exclusion du depot — un script hors git est du
+travail non sauvegarde (decision du 2026-09-22, qui revise celle du
+2026-09-19 ayant cree _non_eprouve\).
+
+Ce panneau n'est PAS un panneau de production. Ce qui s'y trouve n'a aucune
+garantie : cela peut echouer, rendre un resultat faux, ou ne pas se charger.
+
+Regle de sortie : un outil quitte ce panneau quand il a tourne et produit un
+resultat exploitable. Son panneau definitif releve de B25 ; le deplacer
+revient a renommer un dossier.
+
+A ne pas confondre avec l'ancien panneau « Apprentissage » (O1 bis, retire
+le 2026-09-19) : celui-la portait des essais jetables, celui-ci porte des
+outils destines a la production, avant leur premiere execution.
+
+Y est, et l'ordre d'emploi est celui-la :
+
+  1. Renommer volumes (ECRITURE) - donne a chaque volume son nom au motif
+     VOL_nnn__zone__etage__nature, numerote dans l'ordre de l'espace.
+     A TOURNE le 2026-09-24 sur The Study : 202 familles renommees, puis
+     202 noms de type. Verifie par un audit relance apres coup.
+  2. Audit volumes (lecture seule) - A TOURNE quatre fois, du 2026-09-22 au
+     2026-09-24, la derniere sur 202 volumes et 53 zones. C'est lui qui
+     VERIFIE les deux boutons d'ecriture : relance apres eux, il dit ce que
+     la maquette porte, non ce qu'un script croit avoir fait.
+  3. MAJ params volumes (ECRITURE) - recopie le nom dans les parametres.
+     A TOURNE le 2026-09-24 : 1010 valeurs sur 202 volumes, 0 parametre
+     absent, concordance nom/parametres verifiee par l'audit de 16h45.
+
+  + Sonde noms famille (LECTURE SEULE) - diagnostic conserve. Elle imprime
+    cote a cote les huit porteurs du nom d'un volume in situ. Elle a servi
+    le 2026-09-24 a une question depuis RESOLUE : les renommages semblaient
+    revenir a l'ancien nom. La cause n'etait pas le porteur du nom, c'etait
+    script.exit() apres une ecriture, qui fait rendre Cancelled a la
+    commande et fait TOUT annuler par Revit, en silence. Elle reste ici
+    parce qu'elle repond vite, pas parce qu'une question l'attend.
+
+Les trois premiers ont tourne : la regle de sortie leur est acquise, et leur
+panneau definitif reste a decider (B25). Ils restent ici en attendant cette
+decision, avec dans chaque en-tete ce qui a ete MESURE, et sur quoi.
+
+On renomme AVANT d'auditer : un audit passe sur l'ancien motif decrirait un
+etat deja perime. Et le renommage est un bouton separe parce que le nom est
+la source de verite : on n'ecrit pas la source dans la transaction qui la
+lit.
+
+MAQUETTE CENTRALE, depuis le 2026-09-24. Les trois refusaient de tourner sur
+une maquette collaborative non detachee. Ils laissent passer desormais,
+apres une confirmation qui nomme le fichier, annonce le nombre d'elements
+concernes et fait cocher que l'on est seul dessus (ACT-052 (2)). La copie
+detachee (R17) reste la voie sure ; elle n'est plus la seule. Le
+comportement sur copie detachee, lui, n'a pas bouge d'un mot.
+
+AVANT LE PREMIER LOT SUR CENTRALE : le mode 2 de « Renommer volumes »,
+l'essai sur UN volume. Un nom de famille releve des standards de projet, et
+en travail partage les modifier demande un emprunt exclusif. MESURE le
+2026-09-24 sur thestudy_A_VOL : Revit accepte, l'emprunt se fait tout seul,
+et le nom tient apres synchronisation. Mesure faite par un operateur SEUL
+sur la maquette ; ce que Revit fait quand un autre detient le standard reste
+inconnu - d'ou l'essai, qui coute un clic.
+
+LA CHAINE ENTIERE A TOURNE SUR LA MAQUETTE CENTRALE le 2026-09-24 : les
+trois boutons, avec synchronisation et audit a chaque palier, puis le
+site_model mis a jour dans Ivion. Un mode par palier, jamais deux d'affilee
+sans synchroniser ni auditer entre les deux.
+
+Un outil d'ecriture peut se trouver ici : le statut du panneau porte sur la
+maturite, pas sur le mode d'action. Celui qui ecrit garde ses garde-fous -
+simulation d'abord, confirmation nommant la maquette, un seul commit, et
+AUCUN script.exit() apres la premiere ecriture (controle par
+tools\volumes\verifier_sorties_apres_ecriture.py).
+
+Carte complete : docs\organisation_ruban.md

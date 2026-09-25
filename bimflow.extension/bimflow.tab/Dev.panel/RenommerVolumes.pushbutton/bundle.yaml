@@ -1,0 +1,13 @@
+title: |-
+  Renommer
+  volumes
+tooltip: >-
+  NON ÉPROUVÉ — jamais exécuté dans Revit au 2026-09-22. RENOMME des familles.
+  Porte la nature dans le 4e segment du nom des volumes in situ dont il vaut
+  encore "0" : ROOF donne TOITURE, tout le reste donne ETAGE. ENTRE_TOIT,
+  EXTERIEUR et ENVELOPPE ne se devinent pas — à poser à la main. Passage 1 en
+  lecture seule, confirmation nommant la maquette, un seul commit, refus en
+  bloc si un nom voulu existe déjà. À passer AVANT Audit volumes et MAJ params
+  volumes. Copie détachée uniquement.
+author: Keovia Solutions inc.
+highlight: new
