@@ -1,0 +1,26 @@
+MAJ PARAMS VOLUMES — le nom de famille fait autorite
+
+Role : deduire les parametres de referencement d'un volume de zone de son
+NOM DE FAMILLE, et les ecrire. Le nom est la saisie ; les parametres en sont
+la copie exploitable par une nomenclature, un export ou Ivion.
+
+    VOL__<REF_Zone>__<REF_Etage>__<attribut>
+
+Ecrit : REF_Zone, REF_Etage (rafraichis a chaque passage) · REF_Batiment
+        (table de prefixes en tete de script) · REF_Id (uuid4, UNE fois,
+        jamais regenere) · CLS_Nature_volume (seulement si vide).
+N'ecrit jamais : CLS_Usage (saisie metier), le nom de famille, la geometrie.
+
+Ce qu'il ne fait pas : il ne corrige aucun nom, et ne devine aucun prefixe
+absent de sa table. Un volume hors motif est liste, pas repare - c'est
+l'audit (bouton Audit volumes) qui sert a decider quoi renommer, a la main.
+
+Statut : NON EPROUVE au 2026-09-22 - jamais execute dans Revit. Essai sur
+copie detachee uniquement (R17). Le succes affiche par le script ne prouve
+rien : la verification se fait en nomenclature de Volumes.
+
+Note de convention : dans ce depot, _ROLE.txt est normalement un fichier de
+PANNEAU. Celui-ci est au niveau du bouton, a la demande de Bruno, parce que
+le statut et les garde-fous d'un outil d'ecriture meritent d'etre lisibles
+sans ouvrir le script. Le _ROLE.txt du panneau Dev reste la reference du
+panneau.

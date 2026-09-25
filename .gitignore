@@ -231,6 +231,16 @@ __marimo__/
 # Ignore en bloc pour qu'un « git add -A » ne puisse pas le happer.
 /_non_eprouve/
 
+# Outil site_model : environnement Python dedie et dossier de travail.
+# Le venv est DANS le depot pour que Bruno n'ait qu'une commande a taper
+# (tools/sitemodel/run.ps1 le fabrique tout seul au premier lancement), mais
+# il ne se versionne pas : il pese lourd, il est propre a la machine, et il
+# se reconstruit depuis requirements.txt.
+# travail\ porte les fichiers intermediaires et le site_model produit :
+# rien a deplacer a la main, rien a verser au depot.
+/tools/sitemodel/.venv/
+/tools/sitemodel/travail/
+
 # Dropbox / Windows
 .dropbox
 .dropbox.attr
