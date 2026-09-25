@@ -4,20 +4,24 @@ Ce dossier accueille des JSON **réels** produits par le bouton pyRevit
 `Audit volumes`, pour que la chaîne se rejoue **sans Revit** :
 
 ```powershell
-.\tools\sitemodel\run.ps1 -Audit .\tools\sitemodel\exemples\audit_volumes_zone_A_VOL_20260924_1645.json -Batiment "The Study"
+.\tools\sitemodel\run.ps1 -Audit .\tools\sitemodel\exemples\audit_volumes_zone_thestudy_A_VOL_20260924_1814.json -Batiment TheStudy
 ```
 
 ## Ce qu'il y a ici
 
 | Fichier | État |
 |---|---|
-| `audit_volumes_zone_A_VOL_20260924_1645.json` — **202 volumes, 53 zones, 4 bâtiments**, noms au motif `VOL_nnn`, paramètres écrits | **référence, versée le 2026-09-24** |
-| `audit_volumes_zone_A_VOL_20260924.json` — 201 volumes, noms **d'avant** le renommage | conservé comme témoin du motif ancien |
-| l'audit du 2026-09-22 — 30 volumes, 11 zones | jamais déposé ; ceux du 24 le remplacent |
+| `audit_volumes_zone_thestudy_A_VOL_20260924_1814.json` — **202 volumes, 53 zones, 4 bâtiments**, pris sur la **maquette centrale**, 0 erreur de lecture | **référence, versée le 2026-09-24** |
+| `audit_volumes_zone_A_VOL_20260924.json` — 201 volumes, noms **d'avant** le renommage | témoin du motif ancien |
+| l'audit de 16 h 45 sur la copie détachée | retiré le 2026-09-24 : la centrale le remplace, et deux références valent moins qu'une |
+
+La référence vient désormais de **`thestudy_A_VOL`, la maquette centrale**,
+après le renommage des familles, celui des types, l'écriture des paramètres
+et la synchronisation — c'est-à-dire de la source réelle, pas d'une copie.
 
 ## Les chiffres de régression
 
-*Mesurés le 2026-09-24, hors Revit, sur l'audit de 16 h 45 — la chaîne
+*Mesurés le 2026-09-24, hors Revit, sur l'audit de 18 h 14 — la chaîne
 entière, `run.ps1` en une commande, code de sortie 0.*
 
 | Contrôle | Valeur attendue |
@@ -35,6 +39,13 @@ entière, `run.ps1` en une commande, code de sortie 0.*
 
 Si l'un de ces chiffres bouge sans que la maquette ait bougé, c'est le code
 qui a changé. C'est à cela que sert ce dossier.
+
+**Un résultat qui mérite d'être noté** *(mesuré le 2026-09-24)* : l'audit de
+la maquette **centrale** et celui de la **copie détachée** donnent des
+chiffres **identiques, au dernier décimal** — mêmes contours, même partition,
+mêmes 50 `BUILDING`, mêmes 14 couples homonymes. Le détachement ne déforme
+donc rien de ce que la chaîne lit, et une mise au point faite sur copie vaut
+pour la centrale.
 
 L'union des emprises sort en **MultiPolygon (2 parties)** : c'est un site à
 plusieurs corps de bâtiment séparés, et la chaîne le dit sans en faire une
@@ -61,6 +72,6 @@ rendre ses chiffres de référence, que c'est le code qui a bougé et non le
 modèle.
 
 Une règle quand même : **un audit versé ici est un instantané daté**, jamais
-une source. La source reste la maquette `A_VOL`. Nommer le fichier avec la
-date de l'audit, et ne jamais le retoucher à la main — un jeu d'essai
+une source. La source reste la maquette `thestudy_A_VOL`. Nommer le fichier
+avec la date de l'audit, et ne jamais le retoucher à la main — un jeu d'essai
 corrigé ne prouve plus rien.

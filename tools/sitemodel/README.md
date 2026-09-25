@@ -242,25 +242,32 @@ Ce n'est donc pas un obstacle, et C7 dit même que des étages de même nom
 s'affichent **ensemble** — ce qui est peut-être exactement ce qu'on veut d'un
 entretoit et de sa toiture.
 
-**Ce qui n'est pas connu, et qui se mesure en sandbox** : ce que la **carte 2D
-de navigation** en fait. La question recoupe l'inconnue n° 1 de
-`SITE_MODEL.md` §7, côté `ivion_api` : la carte 2D d'un étage semble se
-construire sur la **tranche basse** du nuage. Or nos couples `ROOF` couvrent
-**15,705 → 21,735 m** d'un seul nom : si la carte se construit sur le bas, le
-niveau `ROOF` d'un visiteur montrerait **l'entretoit**, pas la toiture.
+**Ce qu'on a vu** *(Bruno, 2026-09-24, site réel après import — **à
+confirmer**)* : la carte 2D d'un `ROOF` homonyme semble montrer **l'image du
+volume le plus bas**, donc l'entretoit plutôt que la toiture. Cela va dans le
+sens de l'inconnue n° 1 de `SITE_MODEL.md` §7, côté `ivion_api` — la carte 2D
+d'un étage se construirait sur la **tranche basse** du nuage. Ce n'est pas
+encore une mesure : c'est une impression cohérente avec l'hypothèse, et elle
+demande un regard dédié.
 
-À regarder, dans cet ordre, sur un site brouillon :
+À regarder pour confirmer, dans cet ordre :
 
-1. importer, puis ouvrir la vue 2D d'un `ROOF` sur un `BUILDING` à deux
-   `FLOOR` homonymes — `MI_Amg_Am_3m_4mg` est le cas simple ;
+1. la vue 2D d'un `ROOF` sur un `BUILDING` à deux `FLOOR` homonymes —
+   `MI_Amg_Am_3m_4mg` est le cas simple ;
 2. puis sur un `BUILDING` qui en porte **quatre** —
    `MI_Am_Em_3m_6m+MI_Dm_Emg_6m_7m` ou `MI_Bc_Ec_7m_1c+SC_Amg_Cm_6m_7m` ;
 3. comparer avec un `ROOF` sans doublon, par exemple `JU_Bj-Fj-1j-5j`.
 
-**Si la carte est fausse**, le remède est déjà en place : `--suffixer-doublons`
-nomme le second `ROOF_sup`, ce qui en fait deux niveaux de visite distincts.
-C'est un choix d'usage — deux niveaux à parcourir contre un seul dont la carte
-peut mentir — et il se tranche sur ce qu'on aura vu, pas avant.
+**Le remède n'est pas `--suffixer-doublons`** *(arbitrage Bruno, 2026-09-24)*.
+Suffixer renomme le second `ROOF` en `ROOF_sup` et en fait deux niveaux de
+visite distincts : cela déplace le symptôme sans traiter la cause. **La cause
+est géométrique** — un `FLOOR` est une tranche à deux cotes horizontales, et
+un entretoit sous une toiture est une **surface en pente** que ce modèle ne
+sait pas décrire. Le problème se réglera proprement en travaillant les
+surfaces en pente, pas en ajoutant des noms.
+
+L'option reste disponible comme contournement d'usage si la carte gêne avant
+que ce travail soit fait. Elle n'est pas la réponse.
 
 ## Repère et géoréférencement
 

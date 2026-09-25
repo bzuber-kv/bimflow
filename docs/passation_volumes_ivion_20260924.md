@@ -1,6 +1,6 @@
 # Passation — volumes de zone → site_model Ivion
 
-> Repo `bimflow` · branche `feat/audit-volumes-zone`, **17 commits, non poussée**
+> Repo `bimflow` · branche `feat/audit-volumes-zone` → PR vers `dev`
 > Affaire **A_049_TheStudy** · rédigé le 2026-09-24
 > Environnement : Revit 2026, pyRevit 6.5.5, moteur **IPY342** (Python 3.4,
 > pas de f-strings, pas de shebang python3) · PowerShell 7 · code dans
@@ -353,19 +353,21 @@ qui a changé**.
 
 ## 10. Ce qui reste ouvert
 
-1. **La carte 2D et les `FLOOR` homonymes.** 14 couples, dans 12 BUILDING,
-   tous `ENTRETOIT` + `TOITURE` empilés sous le même nom `ROOF`. Ivion **les
-   accepte**, et le `site_model` est en place ; ce que la **minimap de
-   navigation** en fait n'a pas été regardé. `--suffixer-doublons` les
-   distingue si nécessaire — à décider sur ce que montre Ivion, pas avant.
-2. **Le jeu d'essai versé vient de la copie détachée** (audit de 16 h 45).
-   La source est désormais la maquette centrale : l'audit final de la
-   centrale devrait le remplacer, avec ses chiffres de régression relevés.
-3. **Panneau définitif des trois boutons.** Ils ont tourné, la règle de sortie
+1. **La carte 2D et les `FLOOR` homonymes — la cause est géométrique.** 14
+   couples, dans 12 BUILDING, tous `ENTRETOIT` + `TOITURE` empilés sous le
+   même nom `ROOF`. Ivion **les accepte**. Première observation sur le site
+   réel *(2026-09-24, **à confirmer**)* : la carte 2D semble montrer **le
+   volume le plus bas**, donc l'entretoit plutôt que la toiture — cohérent
+   avec l'hypothèse que la carte se construit sur la tranche basse.
+   **`--suffixer-doublons` n'est pas le remède** *(arbitrage Bruno)* : il
+   déplace le symptôme. Un `FLOOR` est une tranche à deux cotes
+   horizontales, et un entretoit sous sa toiture est une **surface en
+   pente** que ce modèle ne sait pas décrire. Le chantier propre est celui
+   des surfaces en pente ; l'option reste un contournement d'usage.
+2. **Panneau définitif des trois boutons.** Ils ont tourné, la règle de sortie
    du panneau `Dev` leur est acquise ; leur destination relève de B25.
-4. **`ControleZoneNiveau` (B18b)** est dans la même situation que l'était
+3. **`ControleZoneNiveau` (B18b)** est dans la même situation que l'était
    `audit_volumes_zone` : signalé, non traité.
-5. **La branche n'est pas poussée**, et il n'y a pas eu de merge vers `main`.
 
 ---
 
