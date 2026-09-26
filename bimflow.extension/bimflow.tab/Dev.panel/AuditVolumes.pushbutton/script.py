@@ -24,6 +24,21 @@ Ivion, surfaces par niveau.
 LECTURE SEULE - aucune transaction n'est ouverte, rien n'est ecrit dans la
 maquette. La seule ecriture est le fichier JSON, hors du modele.
 
+CE QU'IL VERIFIE EN PLUS DEPUIS LE 2026-09-25 - les contraintes du
+site_model Ivion, anticipees DANS REVIT :
+  superposition 3D de deux volumes .. C1 (interieurs disjoints) et C6
+  vide entre deux tranches d'une colonne .. C2 (pile contigue)
+  tranche de moins d'un metre ....... C10
+Ces trois-la se corrigent sur le volume ; les decouvrir en aval, dans la
+chaine, c'est refaire un tour complet pour rien. La fermeture de la
+PARTITION EN PLAN, elle, reste en aval : elle demande de vraies operations
+de polygones (shapely, indisponible sous IronPython).
+
+LE RAPPORT SE SAUVE, depuis le 2026-09-25, au meme endroit et sous le meme
+nom de base que le JSON, en .html. Jusque-la, tout ce qui s'affichait mourait
+avec la fenetre : le JSON porte la geometrie, pas le diagnostic. Or c'est le
+diagnostic qu'on relit.
+
 MAQUETTE CENTRALE. Depuis le 2026-09-24, l'audit ne refuse plus de tourner
 sur une maquette collaborative non detachee. Ce qu'il signale alors n'est
 pas un risque d'ecriture - il n'ecrit pas - mais un risque de VERITE : il
@@ -101,6 +116,35 @@ TOL_SEGMENT_MM = 1.0
 # Arrondi des coordonnees publiees.
 DECIMALES_MM = 1
 
+# --------------------------------------------------------------------------
+# CONTROLES AMONT DES CONTRAINTES IVION - tolerances, en millimetres
+#
+# Ces trois controles existent pour une seule raison : ce que la chaine
+# site_model refusera plus tard se corrige DANS REVIT, pas dans un JSON. Les
+# decouvrir ici, c'est les voir a l'endroit ou on les repare.
+# --------------------------------------------------------------------------
+
+# Deux volumes qui se TOUCHENT ne se recouvrent pas. En deca de ce jeu, un
+# recoupement de boites est un contact de faces mitoyennes, pas un defaut.
+TOL_CONTACT_MM = 1.0
+
+# Jeu admis entre deux tranches consecutives d'une meme colonne (C2). Au-dela,
+# c'est un vide : dans Ivion, un visiteur ne peut pas y etre.
+TOL_JOINT_MM = 1.0
+
+# Volume commun en deca duquel on ne signale pas : bruit de calcul booleen.
+TOL_VOLUME_COMMUN_M3 = 0.001
+
+# C10 : une tranche de moins d'un metre n'est pas un etage visitable.
+HAUTEUR_MINI_MM = 1000.0
+
+# Une colonne est un groupe de volumes qui partagent la meme emprise en plan.
+# Faute de shapely sous IronPython, l'emprise est approchee par la BOITE en
+# plan, arrondie a ce pas. Deux zones de meme boite mais de forme differente
+# seraient groupees a tort - le cas ne s'est pas presente, et le controle R1
+# de la chaine, lui, compare les vrais contours.
+PAS_COLONNE_MM = 10.0
+
 # Le drapeau AUTORISER_NON_DETACHE a disparu le 2026-09-24 : l'audit ne
 # refuse plus la maquette centrale, il la signale et fait confirmer
 # (lib\bimflow_maquette.py pour l'etat du document).
@@ -143,6 +187,7 @@ from Autodesk.Revit.DB import (
     WorksetKind,
     BuiltInCategory,
     BuiltInParameter,
+    ElementId,
     FamilyInstance,
     Level,
     Options,
@@ -158,6 +203,16 @@ from Autodesk.Revit.DB import (
 )
 from Autodesk.Revit.UI import (TaskDialog, TaskDialogCommonButtons,
                                TaskDialogResult)
+
+# Intersection REELLE de deux solides, pour les controles amont. Absente sur
+# une version d'API qui ne l'offrirait pas : le controle se declare alors
+# indisponible plutot que de rendre un resultat approche sans le dire.
+try:
+    from Autodesk.Revit.DB import (BooleanOperationsUtils,
+                                   BooleanOperationsType)
+except ImportError:
+    BooleanOperationsUtils = None
+    BooleanOperationsType = None
 
 doc = revit.doc
 out = script.get_output()
@@ -683,6 +738,7 @@ par_zone = {}
 par_etage = {}
 par_zone_etage = {}         # (zone, etage) -> [(eid, nom)]
 hote_de_plancher = {}       # id plancher -> id volume (vu depuis le volume)
+solides_par_volume = {}     # id volume -> [Solid] - pour les controles amont
 
 
 def noter_erreur(eid, etape, err):
@@ -807,6 +863,11 @@ def auditer_volume(eid):
         pleins, faces_libres, vides, autres = [], [], 0, []
         noter_erreur(eid, u"get_Geometry", err)
 
+    # Les solides sont gardes pour les controles amont : eux seuls comparent
+    # les volumes ENTRE EUX, ce que la boucle ne fait jamais.
+    if pleins:
+        solides_par_volume[id_de(eid)] = pleins
+
     v["nb_solides"] = len(pleins)
     if vides:
         v["nb_solides_vides"] = vides
@@ -867,6 +928,183 @@ doublons_zone_etage = [
     (cle, liste) for cle, liste in sorted(par_zone_etage.items())
     if len(liste) > 1
 ]
+
+# --------------------------------------------------------------------------
+# 2 bis. CONTROLES AMONT DES CONTRAINTES IVION
+#
+# OBJET. Un site_model Ivion obeit a des contraintes que la chaine verifie
+# APRES coup, hors Revit - et qui se corrigent DANS Revit. Les trois
+# controles ci-dessous les anticipent, a l'endroit ou on repare.
+#
+#   superposition 3D ....... C1 (interieurs de BUILDING disjoints) et
+#                            C6 (aucune superposition entre etages freres)
+#   vide dans une colonne .. C2 (pile verticale ordonnee et CONTIGUE)
+#   tranche trop basse ..... C10 (au moins un metre)
+#
+# CE QUI RESTE EN AVAL, et pourquoi. La fermeture de la partition en plan
+# demande de vraies operations de polygones - shapely, indisponible sous
+# IronPython. Elle reste a audit_to_zones, qui nomme desormais les couples
+# fautifs. Ces controles-ci ne la remplacent pas : ils attrapent ce qu'on
+# peut attraper tot.
+#
+# LECTURE SEULE : aucune transaction. Les operations booleennes travaillent
+# sur des copies de solides et ne touchent pas au modele.
+# --------------------------------------------------------------------------
+
+controles = OrderedDict()
+
+
+def boite_de(v):
+    b = v.get("bbox")
+    if not b:
+        return None
+    return (b["xmin"], b["ymin"], b["zmin"], b["xmax"], b["ymax"], b["zmax"])
+
+
+def recouvrement(a, b, i_min, i_max):
+    """Longueur commune des deux boites sur un axe, en mm. <= 0 : disjointes."""
+    return min(a[i_max], b[i_max]) - max(a[i_min], b[i_min])
+
+
+def boites_se_recoupent(a, b, tol):
+    """Vrai si les deux boites se recoupent dans LES TROIS dimensions.
+
+    Les trois, jamais une seule : c'est la regle payee le 2026-09-24, quand
+    un ecart de 3 620 mm mesure sur le seul axe Z s'est revele nul en plan."""
+    return (recouvrement(a, b, 0, 3) > tol and
+            recouvrement(a, b, 1, 4) > tol and
+            recouvrement(a, b, 2, 5) > tol)
+
+
+def volume_commun(id_a, id_b):
+    """(volume m3, boite du commun en mm) ou (None, None) si indisponible.
+
+    Leve None si l'API booleenne manque ou si Revit refuse l'operation - on
+    ne remplace jamais une mesure par une estimation silencieuse."""
+    if BooleanOperationsUtils is None:
+        return None, None
+    total = 0.0
+    coins = []
+    for sa in solides_par_volume.get(id_a, []):
+        for sb in solides_par_volume.get(id_b, []):
+            try:
+                commun = BooleanOperationsUtils.ExecuteBooleanOperation(
+                    sa, sb, BooleanOperationsType.Intersect)
+            except Exception:
+                return None, None
+            if commun is None or commun.Volume <= 1e-9:
+                continue
+            total += commun.Volume
+            try:
+                bb = commun.GetBoundingBox()
+                # La boite d'un solide est donnee dans SON repere : on la
+                # ramene au repere du modele avant de la comparer a quoi que
+                # ce soit.
+                for p in (bb.Min, bb.Max):
+                    q = bb.Transform.OfPoint(p)
+                    coins.append((rmm(q.X), rmm(q.Y), rmm(q.Z)))
+            except Exception:
+                pass
+    if total <= 0.0:
+        return 0.0, None
+    boite = None
+    if coins:
+        xs = [c[0] for c in coins]
+        ys = [c[1] for c in coins]
+        zs = [c[2] for c in coins]
+        boite = (min(xs), min(ys), min(zs), max(xs), max(ys), max(zs))
+    return m3(total), boite
+
+
+# --- C1 / C6 : deux volumes ne peuvent pas occuper le meme espace ---------
+
+superpositions = []         # (volume m3, id a, nom a, id b, nom b, boite)
+superpositions_indecises = []   # couples dont Revit a refuse le booleen
+
+avec_boite = [v for v in volumes if boite_de(v) is not None]
+candidats = []
+for i_a in range(len(avec_boite)):
+    for i_b in range(i_a + 1, len(avec_boite)):
+        ba = boite_de(avec_boite[i_a])
+        bb_ = boite_de(avec_boite[i_b])
+        if boites_se_recoupent(ba, bb_, TOL_CONTACT_MM):
+            candidats.append((avec_boite[i_a], avec_boite[i_b]))
+
+for va, vb in candidats:
+    vol, boite = volume_commun(va["id"], vb["id"])
+    if vol is None:
+        superpositions_indecises.append(
+            (va["id"], va.get("family_name"), vb["id"], vb.get("family_name")))
+        continue
+    if vol > TOL_VOLUME_COMMUN_M3:
+        superpositions.append((vol, va["id"], va.get("family_name"),
+                               vb["id"], vb.get("family_name"), boite))
+superpositions.sort(reverse=True)
+
+controles["superposition_3d"] = OrderedDict([
+    ("nb_couples_candidats_par_boite", len(candidats)),
+    ("nb_couples_en_superposition", len(superpositions)),
+    ("nb_couples_non_calculables", len(superpositions_indecises)),
+    ("tolerance_volume_m3", TOL_VOLUME_COMMUN_M3),
+])
+
+
+# --- C2 : dans une colonne, aucun vide entre deux tranches ---------------
+#
+# Une colonne, ici, est un groupe de volumes qui partagent la MEME EMPRISE
+# EN PLAN - approchee par la boite en plan arrondie, faute de shapely. Le
+# nom de zone ne sert pas de cle : un audit peut tourner AVANT le renommage,
+# et la geometrie, elle, est toujours la.
+
+def cle_colonne(v):
+    b = boite_de(v)
+    if b is None:
+        return None
+    return tuple(round(c / PAS_COLONNE_MM) for c in (b[0], b[1], b[3], b[4]))
+
+
+colonnes = {}
+for v in avec_boite:
+    colonnes.setdefault(cle_colonne(v), []).append(v)
+
+vides_colonne = []          # (jeu mm, zone, id bas, nom bas, id haut, nom haut)
+for cle, membres in colonnes.items():
+    if len(membres) < 2:
+        continue
+    empiles = sorted(membres, key=lambda v: boite_de(v)[2])
+    for bas, haut in zip(empiles, empiles[1:]):
+        jeu = boite_de(haut)[2] - boite_de(bas)[5]
+        if jeu > TOL_JOINT_MM:
+            vides_colonne.append((
+                jeu,
+                (bas.get("segments") or {}).get("REF_Zone"),
+                bas["id"], bas.get("family_name"),
+                haut["id"], haut.get("family_name")))
+vides_colonne.sort(reverse=True)
+
+controles["vide_dans_une_colonne"] = OrderedDict([
+    ("nb_colonnes_a_plusieurs_tranches",
+     len([m for m in colonnes.values() if len(m) > 1])),
+    ("nb_vides", len(vides_colonne)),
+    ("jeu_admis_mm", TOL_JOINT_MM),
+    ("emprise_approchee_par", "boite en plan, pas de %g mm" % PAS_COLONNE_MM),
+])
+
+
+# --- C10 : une tranche fait au moins un metre ----------------------------
+
+trop_basses = []            # (hauteur mm, id, nom)
+for v in avec_boite:
+    b = boite_de(v)
+    hauteur = b[5] - b[2]
+    if hauteur < HAUTEUR_MINI_MM:
+        trop_basses.append((hauteur, v["id"], v.get("family_name")))
+trop_basses.sort()
+
+controles["tranche_sous_le_metre"] = OrderedDict([
+    ("nb_tranches", len(trop_basses)),
+    ("hauteur_mini_mm", HAUTEUR_MINI_MM),
+])
 
 # --------------------------------------------------------------------------
 # 5. Planchers de volume EXISTANTS - aucun n'est cree
@@ -968,6 +1206,14 @@ def lien(eid):
         return out.linkify(eid)
     except Exception:
         return u"`{0}`".format(id_de(eid))
+
+
+def lien_id(identifiant):
+    """Comme lien(), mais depuis l'entier deja publie dans le JSON."""
+    try:
+        return out.linkify(ElementId(identifiant))
+    except Exception:
+        return u"`{0}`".format(identifiant)
 
 
 def liste_md(titre, lignes, vide=u"*Aucun.*"):
@@ -1080,6 +1326,94 @@ if non_in_situ:
         [u"- {0} `{1}`".format(lien(e), n) for e, n in non_in_situ],
     )
 
+# --------------------------------------------------------------------------
+# Contraintes Ivion - ce qui se repare ICI plutot qu'en aval
+# --------------------------------------------------------------------------
+
+out.print_md(u"## Compatibilite site_model Ivion")
+out.print_md(
+    u"Ces trois controles anticipent, **dans Revit**, ce que la chaine "
+    u"`site_model` refuserait plus tard. Un defaut trouve ici se corrige sur "
+    u"le volume ; trouve en aval, il fait recommencer le tour.\n\n"
+    u"| Controle | Contrainte Ivion | Resultat |\n|---|---|---|\n"
+    u"| Superposition 3D | **C1** interieurs disjoints, **C6** etages freres | {0} |\n"
+    u"| Vide dans une colonne | **C2** pile contigue | {1} |\n"
+    u"| Tranche sous le metre | **C10** | {2} |\n".format(
+        (u"**{0} couple(s)**".format(len(superpositions)) if superpositions
+         else u"aucun sur {0} couple(s) examine(s)".format(len(candidats))),
+        (u"**{0} vide(s)**".format(len(vides_colonne)) if vides_colonne
+         else u"aucun sur {0} colonne(s)".format(
+             len([m for m in colonnes.values() if len(m) > 1]))),
+        (u"**{0} tranche(s)**".format(len(trop_basses)) if trop_basses
+         else u"aucune"))
+)
+
+if BooleanOperationsUtils is None:
+    out.print_md(
+        u"> ⚠ **Superposition NON VERIFIEE** : l'API d'operations booleennes "
+        u"n'est pas disponible sur cette version. Le controle ne rend aucun "
+        u"resultat plutot qu'un resultat approche."
+    )
+
+liste_md(
+    u"Volumes qui se superposent - C1 / C6",
+    [u"- **{0:.3f} m³** : {1} `{2}` **X** {3} `{4}`{5}".format(
+        vol, lien_id(ia), na, lien_id(ib), nb,
+        u"" if not boite else
+        u"<br>  bande de **{0:.0f} mm** sur {1:.0f} x {2:.0f} mm".format(
+            min(boite[3] - boite[0], boite[4] - boite[1], boite[5] - boite[2]),
+            boite[3] - boite[0], boite[4] - boite[1]))
+     for vol, ia, na, ib, nb, boite in superpositions],
+    vide=u"*Aucune : les {0} couple(s) dont les boites se recoupaient ont un "
+         u"volume commun nul ou negligeable.*".format(len(candidats)),
+)
+if superpositions:
+    out.print_md(
+        u"> **L'epaisseur de la bande dit quoi corriger.** Quelques "
+        u"centimetres sur plusieurs metres, c'est un bord trace sur la "
+        u"mauvaise face d'un mur. Un bloc de plusieurs decimetres dans les "
+        u"deux sens, c'est un conflit de trace - deux volumes se disputent le "
+        u"meme espace."
+    )
+
+if superpositions_indecises:
+    liste_md(
+        u"Couples dont Revit a refuse l'intersection - **non conclus**",
+        [u"- {0} `{1}` **X** {2} `{3}`".format(lien_id(ia), na, lien_id(ib), nb)
+         for ia, na, ib, nb in superpositions_indecises],
+    )
+
+liste_md(
+    u"Vides entre deux tranches d'une meme colonne - C2",
+    [u"- **{0:.0f} mm** de vide{1} : au-dessus de {2} `{3}`, sous {4} `{5}`".format(
+        jeu, u" (zone `{0}`)".format(zone) if zone else u"",
+        lien_id(ib), nb, lien_id(ih), nh)
+     for jeu, zone, ib, nb, ih, nh in vides_colonne],
+    vide=u"*Aucun : dans chaque colonne, chaque tranche commence ou la "
+         u"precedente s'arrete.*",
+)
+if vides_colonne:
+    out.print_md(
+        u"> Un vide dans une pile est un etage ou un visiteur ne peut pas "
+        u"etre. La chaine le compte en **C2** sans bloquer ; Ivion, lui, "
+        u"affichera un trou. Le bas du volume superieur doit rejoindre le "
+        u"haut de l'inferieur."
+    )
+
+liste_md(
+    u"Tranches de moins d'un metre - C10",
+    [u"- **{0:.0f} mm** : {1} `{2}`".format(h, lien_id(i), n)
+     for h, i, n in trop_basses],
+    vide=u"*Aucune.*",
+)
+
+out.print_md(
+    u"> **Ce qui reste en aval.** La fermeture de la **partition en plan** "
+    u"demande de vraies operations de polygones (`shapely`, indisponible sous "
+    u"IronPython) : elle reste a `audit_to_zones`, qui nomme les couples de "
+    u"zones fautifs. Les controles ci-dessus ne la remplacent pas."
+)
+
 out.print_md(u"## Planchers de volume")
 if not mass_floors:
     out.print_md(
@@ -1177,6 +1511,39 @@ racine["constats"] = OrderedDict([
 ])
 racine["erreurs"] = erreurs
 
+# Les controles amont partent dans le JSON, avec le DETAIL et pas seulement
+# le compte : une chaine en aval, ou une relecture dans six mois, doit
+# pouvoir dire QUELS volumes, pas seulement combien.
+controles["superposition_3d"]["couples"] = [
+    OrderedDict([
+        ("volume_commun_m3", vol),
+        ("a", OrderedDict([("id", ia), ("family_name", texte(na))])),
+        ("b", OrderedDict([("id", ib), ("family_name", texte(nb))])),
+        ("boite_commune_mm", None if not boite else OrderedDict([
+            ("xmin", boite[0]), ("ymin", boite[1]), ("zmin", boite[2]),
+            ("xmax", boite[3]), ("ymax", boite[4]), ("zmax", boite[5])])),
+    ])
+    for vol, ia, na, ib, nb, boite in superpositions
+]
+controles["superposition_3d"]["couples_non_calculables"] = [
+    OrderedDict([("a", ia), ("b", ib)])
+    for ia, _na, ib, _nb in superpositions_indecises
+]
+controles["vide_dans_une_colonne"]["vides"] = [
+    OrderedDict([
+        ("jeu_mm", jeu), ("REF_Zone", zone),
+        ("dessous", OrderedDict([("id", ib), ("family_name", texte(nb))])),
+        ("dessus", OrderedDict([("id", ih), ("family_name", texte(nh))])),
+    ])
+    for jeu, zone, ib, nb, ih, nh in vides_colonne
+]
+controles["tranche_sous_le_metre"]["tranches"] = [
+    OrderedDict([("hauteur_mm", h), ("id", i), ("family_name", texte(n))])
+    for h, i, n in trop_basses
+]
+controles["superposition_3d"]["disponible"] = BooleanOperationsUtils is not None
+racine["controles_ivion"] = controles
+
 
 def demander_chemin():
     for _ in range(3):
@@ -1208,6 +1575,26 @@ if chemin:
         f.close()
     out.print_md(u"## Export\n{0} volume(s), {1} plancher(s) de volume ecrits "
                  u"dans `{2}`".format(len(volumes), len(mass_floors), chemin))
+
+    # LE RAPPORT SE SAUVE AUSSI, au meme endroit et sous le meme nom de base.
+    # Jusqu'au 2026-09-25, tout ce qui s'affiche ici mourait avec la fenetre :
+    # le JSON porte la geometrie, pas le diagnostic. Or c'est le diagnostic
+    # qu'on relit - les superpositions, les vides, les noms non conformes.
+    # save_contents ecrit le HTML de la fenetre telle qu'elle est a cet
+    # instant : cet appel doit donc rester LE DERNIER du script.
+    chemin_html = chemin
+    if chemin_html.lower().endswith(u".json"):
+        chemin_html = chemin_html[:-5]
+    chemin_html += u".html"
+    try:
+        out.save_contents(chemin_html)
+        out.print_md(u"Rapport : `{0}`".format(chemin_html))
+    except Exception as err:
+        out.print_md(
+            u"> ⚠ **Rapport non sauve** : `{0}`\n>\n"
+            u"> Le JSON, lui, est ecrit. Recopier la fenetre a la main si ce "
+            u"diagnostic doit etre conserve.".format(texte(err)))
 else:
-    out.print_md(u"## Export\n*Annule - le JSON n'est pas ecrit. La synthese "
-                 u"ci-dessus reste valable.*")
+    out.print_md(u"## Export\n*Annule - ni le JSON ni le rapport ne sont "
+                 u"ecrits. La synthese ci-dessus reste valable, mais elle "
+                 u"disparaitra avec cette fenetre.*")
