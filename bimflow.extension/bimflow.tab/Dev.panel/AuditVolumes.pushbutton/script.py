@@ -43,6 +43,11 @@ projection. La lecture des faces a quitte ce fichier pour
 lib\\bimflow_geometrie, sans changement : le JSON produit est le meme, plus
 la cle surface_sol de chaque volume.
 
+L'AUDIT S'ENREGISTRE PAR DEFAUT, depuis le 2026-09-28 - sans boite de
+dialogue, dans DOSSIER_AUDITS, sous un nom horodate qui n'ecrase jamais un
+audit precedent. Le chemin s'affiche en fin de rapport. La boite de dialogue
+ne revient qu'en repli, si ce dossier est inutilisable, et le rapport le dit.
+
 LE RAPPORT SE SAUVE, depuis le 2026-09-25, au meme endroit et sous le meme
 nom de base que le JSON, en .html. Jusque-la, tout ce qui s'affichait mourait
 avec la fenetre : le JSON porte la geometrie, pas le diagnostic. Or c'est le
@@ -160,6 +165,14 @@ PAS_COLONNE_MM = 10.0
 
 # Le JSON ne s'ecrit ni dans OneDrive ni sous WORK (comparaison en minuscules).
 FRAGMENTS_INTERDITS = ("onedrive", "\\work\\")
+
+# OU L'AUDIT S'ENREGISTRE, sans rien demander : JSON et rapport HTML, sous
+# audit_volumes_zone_<maquette>_<AAAAMMJJ_HHMM>.json / .html. Le profil
+# Windows lui-meme n'est pas redirige vers OneDrive (Documents peut l'etre :
+# c'est pour cela qu'il n'est pas retenu). A changer ICI.
+import os
+DOSSIER_AUDITS = os.path.join(os.path.expanduser(u"~"), u"bimflow",
+                              u"audits_volumes")
 
 # --------------------------------------------------------------------------
 
@@ -1540,13 +1553,42 @@ controles["superposition_3d"]["disponible"] = BooleanOperationsUtils is not None
 racine["controles_ivion"] = controles
 
 
+def chemin_interdit(chemin):
+    bas = chemin.lower()
+    return any(fragment in bas for fragment in FRAGMENTS_INTERDITS)
+
+
+def chemin_par_defaut():
+    """<DOSSIER_AUDITS>\\<nom_defaut>.json, sans jamais ecraser un audit
+    precedent : deux audits dans la meme minute recoivent _2, _3...
+
+    Rend (chemin, None) ou (None, motif) si le dossier est interdit ou ne
+    peut pas etre cree."""
+    dossier = DOSSIER_AUDITS
+    if chemin_interdit(dossier + u"\\"):
+        return None, u"le dossier par defaut est sous OneDrive ou WORK : {0}"\
+            .format(dossier)
+    try:
+        if not os.path.isdir(dossier):
+            os.makedirs(dossier)
+    except Exception as err:
+        return None, u"dossier {0} impossible a creer : {1}".format(
+            dossier, texte(err))
+    chemin = os.path.join(dossier, nom_defaut + u".json")
+    rang = 2
+    while os.path.exists(chemin):
+        chemin = os.path.join(dossier, u"{0}_{1}.json".format(nom_defaut, rang))
+        rang += 1
+    return chemin, None
+
+
 def demander_chemin():
+    """Repli, et seulement repli : le dossier par defaut a echoue."""
     for _ in range(3):
         chemin = forms.save_file(file_ext="json", default_name=nom_defaut)
         if not chemin:
             return None
-        bas = chemin.lower()
-        if any(fragment in bas for fragment in FRAGMENTS_INTERDITS):
+        if chemin_interdit(chemin):
             forms.alert(
                 u"Le JSON ne s'ecrit ni dans OneDrive ni sous WORK.\n\n"
                 u"Chemin refuse :\n{0}\n\nChoisir un autre dossier.".format(chemin)
@@ -1556,9 +1598,7 @@ def demander_chemin():
     return None
 
 
-chemin = demander_chemin()
-
-if chemin:
+def ecrire_json(chemin):
     # un seul write() : le JSON est assemble en memoire puis ecrit d'un bloc
     # default=texte : un type .NET inattendu devient une chaine au lieu de
     # faire echouer l'export apres tout le calcul
@@ -1568,8 +1608,30 @@ if chemin:
         f.write(contenu)
     finally:
         f.close()
-    out.print_md(u"## Export\n{0} volume(s), {1} plancher(s) de volume ecrits "
-                 u"dans `{2}`".format(len(volumes), len(mass_floors), chemin))
+
+
+# L'AUDIT S'ENREGISTRE PAR DEFAUT, depuis le 2026-09-28 : c'est une trace,
+# pas une option. Plus de boite de dialogue, sauf si le dossier par defaut
+# echoue - et alors on le dit avant de la montrer.
+chemin, motif_defaut = chemin_par_defaut()
+if chemin is not None:
+    try:
+        ecrire_json(chemin)
+    except Exception as err:
+        motif_defaut = u"ecriture refusee dans {0} : {1}".format(
+            chemin, texte(err))
+        chemin = None
+if chemin is None:
+    out.print_md(u"> ⚠ **Enregistrement par defaut impossible** : {0}. "
+                 u"Choisir un dossier.".format(motif_defaut))
+    chemin = demander_chemin()
+    if chemin:
+        ecrire_json(chemin)
+
+if chemin:
+    out.print_md(u"## Enregistrement\n{0} volume(s), {1} plancher(s) de volume "
+                 u"ecrits dans `{2}`".format(len(volumes), len(mass_floors),
+                                             chemin))
 
     # LE RAPPORT SE SAUVE AUSSI, au meme endroit et sous le meme nom de base.
     # Jusqu'au 2026-09-25, tout ce qui s'affiche ici mourait avec la fenetre :
@@ -1581,15 +1643,17 @@ if chemin:
     if chemin_html.lower().endswith(u".json"):
         chemin_html = chemin_html[:-5]
     chemin_html += u".html"
+    # Le chemin du rapport est annonce AVANT la sauvegarde, pour figurer dans
+    # le rapport lui-meme ; l'echec eventuel s'affiche apres, dans la fenetre.
+    out.print_md(u"Rapport : `{0}`".format(chemin_html))
     try:
         out.save_contents(chemin_html)
-        out.print_md(u"Rapport : `{0}`".format(chemin_html))
     except Exception as err:
         out.print_md(
-            u"> ⚠ **Rapport non sauve** : `{0}`\n>\n"
+            u"> ⚠ **Rapport NON sauve** : `{0}`\n>\n"
             u"> Le JSON, lui, est ecrit. Recopier la fenetre a la main si ce "
             u"diagnostic doit etre conserve.".format(texte(err)))
 else:
-    out.print_md(u"## Export\n*Annule - ni le JSON ni le rapport ne sont "
-                 u"ecrits. La synthese ci-dessus reste valable, mais elle "
-                 u"disparaitra avec cette fenetre.*")
+    out.print_md(u"## Enregistrement\n**Rien n'est enregistre** - ni le "
+                 u"JSON ni le rapport. La synthese ci-dessus reste valable, "
+                 u"mais elle disparaitra avec cette fenetre.")
