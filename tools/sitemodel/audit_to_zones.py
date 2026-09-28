@@ -56,133 +56,24 @@ RACINE = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RACINE / "bimflow.extension" / "lib"))
 try:
     from bimflow_noms import lire as lire_nom, NATURES_EXPORTEES
+    # La reconstruction du contour vit dans bimflow_contour depuis le
+    # 2026-09-28 : le bouton d'ecriture en tire CAR_Surface_sol, et l'audit
+    # le controle, avec ce meme code.
+    from bimflow_contour import (aire_lacet, Sommets, chainer,
+                                 contours_egaux, segments_verticaux)
 except ImportError:
-    sys.exit("REFUS : module partage bimflow_noms introuvable. Attendu dans "
-             "%s" % (RACINE / "bimflow.extension" / "lib"))
+    sys.exit("REFUS : modules partages bimflow_noms / bimflow_contour "
+             "introuvables. Attendus dans %s"
+             % (RACINE / "bimflow.extension" / "lib"))
 
 # --------------------------------------------------------------------------
-# Reglages
+# Reglages - fusion des sommets et egalite de contours : bimflow_contour
 # --------------------------------------------------------------------------
 
-TOL_SOMMET_MM = 1.0        # fusion de deux extremites d'aretes
-DEC_SOMMET = 1             # arrondi de la cle d'un sommet, en dixieme de mm
 TOL_AIRE_M2 = 0.5          # ecart admis contour reconstruit / face horizontale
-TOL_CONTOUR_MM = 1.0       # ecart admis entre deux tranches d'une meme zone
 TOL_PARTITION_M2 = 0.05    # ecart admis somme des zones / union des zones
 
 # --------------------------------------------------------------------------
-
-
-def aire_lacet(anneau):
-    """Aire algebrique d'un anneau ferme, en mm2 (positive si sens trigo)."""
-    s = 0.0
-    for (x1, y1), (x2, y2) in zip(anneau, anneau[1:]):
-        s += x1 * y2 - x2 * y1
-    return s / 2.0
-
-
-class Sommets(object):
-    """Fusionne les extremites proches en UN sommet canonique.
-
-    Grille de TOL mm : pour un point donne, on ne compare qu'aux sommets des
-    neuf cases voisines. Le cout reste lineaire, et la fusion ne depend pas
-    de l'ordre de lecture a la tolerance pres."""
-
-    def __init__(self, tol=TOL_SOMMET_MM):
-        self.tol = tol
-        self.cases = {}
-
-    def _case(self, x, y):
-        return (int(math.floor(x / self.tol)), int(math.floor(y / self.tol)))
-
-    def canonique(self, x, y):
-        cx, cy = self._case(x, y)
-        for dx in (-1, 0, 1):
-            for dy in (-1, 0, 1):
-                for px, py in self.cases.get((cx + dx, cy + dy), []):
-                    if math.hypot(px - x, py - y) <= self.tol:
-                        return (px, py)
-        point = (round(x, DEC_SOMMET), round(y, DEC_SOMMET))
-        self.cases.setdefault(self._case(*point), []).append(point)
-        return point
-
-
-def chainer(segments, sommets):
-    """(anneau ferme, None) ou (None, motif du refus).
-
-    Un contour de volume est un cycle simple : chaque sommet a exactement
-    deux voisins, et le parcours consomme toutes les aretes."""
-    voisins = {}
-    aretes = set()
-    for (x1, y1), (x2, y2) in segments:
-        a = sommets.canonique(x1, y1)
-        b = sommets.canonique(x2, y2)
-        if a == b:
-            continue                      # arete degeneree apres fusion
-        cle = (a, b) if a <= b else (b, a)
-        if cle in aretes:
-            continue                      # doublon : deja vue
-        aretes.add(cle)
-        voisins.setdefault(a, []).append(b)
-        voisins.setdefault(b, []).append(a)
-
-    if not aretes:
-        return None, "aucune arete exploitable"
-
-    degres = {}
-    for point, liste in voisins.items():
-        degres.setdefault(len(liste), 0)
-        degres[len(liste)] += 1
-    mauvais = [(p, len(v)) for p, v in voisins.items() if len(v) != 2]
-    if mauvais:
-        return None, ("contour non refermable : %d sommet(s) de degre != 2 "
-                      "(degres observes : %s)"
-                      % (len(mauvais),
-                         ", ".join("%d->%dx" % (d, n)
-                                   for d, n in sorted(degres.items()))))
-
-    depart = min(voisins)
-    anneau = [depart]
-    precedent = None
-    courant = depart
-    vues = set()
-    while True:
-        suite = [v for v in voisins[courant] if v != precedent]
-        if not suite:
-            return None, "contour interrompu : cul-de-sac"
-        suivant = suite[0]
-        cle = (courant, suivant) if courant <= suivant else (suivant, courant)
-        vues.add(cle)
-        anneau.append(suivant)
-        precedent, courant = courant, suivant
-        if courant == depart:
-            break
-        if len(anneau) > len(aretes) + 1:
-            return None, "contour interrompu : parcours non convergent"
-
-    if len(vues) != len(aretes):
-        return None, ("plusieurs contours fermes : %d arete(s) sur %d "
-                      "parcourues - le volume porte-t-il plusieurs solides, "
-                      "ou un trou ?" % (len(vues), len(aretes)))
-
-    if aire_lacet(anneau) < 0:
-        anneau.reverse()                  # sens trigonometrique, par convention
-    return anneau, None
-
-
-def contours_egaux(a, b):
-    """Deux anneaux decrivent-ils le meme contour, a la tolerance pres ?"""
-    ea = set(a[:-1])
-    eb = set(b[:-1])
-    if len(ea) != len(eb):
-        return False
-    for point in ea:
-        if point in eb:
-            continue
-        if not any(math.hypot(point[0] - q[0], point[1] - q[1]) <= TOL_CONTOUR_MM
-                   for q in eb):
-            return False
-    return True
 
 
 # --------------------------------------------------------------------------
@@ -221,10 +112,7 @@ for v in volumes:
         refus.append((ident, nom, "aucune face lue par l'audit"))
         continue
 
-    segments = []
-    for f in faces:
-        if f.get("classe") == "VERTICALE":
-            segments.extend(f.get("segments_xy") or [])
+    segments = segments_verticaux(faces)
     if not segments:
         refus.append((ident, nom, "aucune face verticale : contour "
                                   "impossible a reconstruire"))

@@ -34,6 +34,15 @@ chaine, c'est refaire un tour complet pour rien. La fermeture de la
 PARTITION EN PLAN, elle, reste en aval : elle demande de vraies operations
 de polygones (shapely, indisponible sous IronPython).
 
+CAR_SURFACE_SOL, DEPUIS LE 2026-09-28 - NON EPROUVE DANS REVIT. Chaque
+volume voit son contour reconstruit ICI, par lib\\bimflow_contour - le code
+dont le bouton MajParamsVolumes tire la valeur qu'il ecrit - et la valeur
+portee, lue par GUID, doit s'en ecarter de moins de 0,01 m2. Les volumes a
+face basse inclinee sont signales, avec l'ecart entre leur face basse et sa
+projection. La lecture des faces a quitte ce fichier pour
+lib\\bimflow_geometrie, sans changement : le JSON produit est le meme, plus
+la cle surface_sol de chaque volume.
+
 LE RAPPORT SE SAUVE, depuis le 2026-09-25, au meme endroit et sous le meme
 nom de base que le JSON, en .html. Jusque-la, tout ce qui s'affichait mourait
 avec la fenetre : le JSON porte la geometrie, pas le diagnostic. Or c'est le
@@ -81,8 +90,9 @@ corrige - cet outil ne touche a rien.
 
 Ce que le JSON contient :
   - en-tete : maquette, unites, repere, points de base, niveaux ;
-  - volumes : identite, parametres REF_ / CLS_ (meme vides), boite
-    englobante, volume et surface bruts, solides et faces classees ;
+  - volumes : identite, parametres REF_ / CLS_ / CAR_ (meme vides), boite
+    englobante, volume et surface bruts, solides et faces classees,
+    controle surface_sol ;
   - mass_floors : planchers de volume EXISTANTS (aucun n'est cree), avec
     volume hote, niveau et contour XY de la face superieure.
 
@@ -94,6 +104,7 @@ sur The Study, Level.Elevation et la geometrie different de 29 065 mm
 bimflow - volumes de zone, audit - Keovia Solutions inc.
 v1 - 2026-09-22 : premiere execution, 30 volumes.
 v2 - 2026-09-24 : motif etendu (numero, cle), 202 volumes.
+v3 - 2026-09-28 : controle CAR_Surface_sol ; lecture des faces dans lib\\.
 """
 
 __title__ = "Audit\nvolumes zone"
@@ -104,17 +115,15 @@ __author__ = "Keovia Solutions inc."
 # --------------------------------------------------------------------------
 
 # Parametres releves sur chaque volume (instance ET type), meme vides.
-PREFIXES_PARAMETRES = ("REF_", "CLS_")
+PREFIXES_PARAMETRES = ("REF_", "CLS_", "CAR_")
 
-# Classement des faces sur la composante Z de la normale unitaire.
-NZ_HORIZONTALE = 0.999      # |nz| au-dessus : horizontale
-NZ_VERTICALE = 0.001        # |nz| au-dessous : verticale ; entre les deux : inclinee
+# Classement des faces (NZ_HORIZONTALE, NZ_VERTICALE), tolerance des aretes
+# verticales (TOL_SEGMENT_MM) et arrondi (DECIMALES_MM) : lib\bimflow_geometrie,
+# depuis le 2026-09-28 - le bouton d'ecriture lit la geometrie avec eux.
 
-# Segment projete en XY plus court que ceci : arete verticale, ecartee.
-TOL_SEGMENT_MM = 1.0
-
-# Arrondi des coordonnees publiees.
-DECIMALES_MM = 1
+# Controle CAR_Surface_sol : ecart admis entre la valeur portee par le volume
+# et l'aire de son contour reconstruit ICI, en m2.
+TOL_SURFACE_SOL_M2 = 0.01
 
 # --------------------------------------------------------------------------
 # CONTROLES AMONT DES CONTRAINTES IVION - tolerances, en millimetres
@@ -171,13 +180,24 @@ try:
         NATURES,
     )
     from bimflow_maquette import etat as etat_maquette
+    # La lecture des faces et la reconstruction du contour vivent dans lib\
+    # depuis le 2026-09-28 : le bouton MajParamsVolumes ecrit CAR_Surface_sol
+    # avec ce meme code, et cet audit la controle.
+    from bimflow_geometrie import (
+        NZ_HORIZONTALE, NZ_VERTICALE, TOL_SEGMENT_MM,
+        mm, rmm, m2, m3, interne_vers_m2,
+        parcourir_geometrie, boucle_exterieure, anneau_xy, faces_du_volume,
+        parametre_par_guid, est_une_surface, GUID_SURFACE_SOL,
+    )
+    from bimflow_contour import contour_du_volume, face_basse
 except ImportError:
     from pyrevit import forms as _formulaires
     _formulaires.alert(
-        u"Module partage bimflow_noms introuvable.\n\n"
-        u"Il doit se trouver dans bimflow.extension\\lib\\. Sans lui, le "
-        u"decoupage des noms de volumes n'est pas disponible et ce script "
-        u"ne s'execute pas.",
+        u"Modules partages bimflow_noms / bimflow_maquette / "
+        u"bimflow_geometrie / bimflow_contour introuvables.\n\n"
+        u"Ils doivent se trouver dans bimflow.extension\\lib\\. Sans eux, ni "
+        u"le decoupage des noms de volumes ni la lecture de leur geometrie "
+        u"ne sont disponibles, et ce script ne s'execute pas.",
         exitscript=True,
     )
 
@@ -190,15 +210,8 @@ from Autodesk.Revit.DB import (
     ElementId,
     FamilyInstance,
     Level,
-    Options,
-    ViewDetailLevel,
-    GeometryInstance,
-    Solid,
-    Face,
     PlanarFace,
-    Line,
     StorageType,
-    UV,
     XYZ,
 )
 from Autodesk.Revit.UI import (TaskDialog, TaskDialogCommonButtons,
@@ -221,44 +234,6 @@ out = script.get_output()
 # Petits outils
 # --------------------------------------------------------------------------
 
-MM_PAR_PIED = 304.8
-M2_PAR_PIED2 = 0.09290304
-M3_PAR_PIED3 = 0.028316846592
-
-try:
-    from Autodesk.Revit.DB import UnitUtils, UnitTypeId
-    _UNITE_MM = UnitTypeId.Millimeters
-except Exception:
-    UnitUtils = None
-    _UNITE_MM = None
-
-
-def mm(valeur):
-    """Pieds decimaux (unite interne Revit) -> millimetres."""
-    if valeur is None:
-        return None
-    if UnitUtils is not None and _UNITE_MM is not None:
-        try:
-            return UnitUtils.ConvertFromInternalUnits(valeur, _UNITE_MM)
-        except Exception:
-            pass
-    return valeur * MM_PAR_PIED
-
-
-def rmm(valeur_pieds):
-    """Pieds -> mm arrondis, pret pour le JSON."""
-    v = mm(valeur_pieds)
-    return None if v is None else round(v, DECIMALES_MM)
-
-
-def m2(valeur_pieds2):
-    return None if valeur_pieds2 is None else round(valeur_pieds2 * M2_PAR_PIED2, 4)
-
-
-def m3(valeur_pieds3):
-    return None if valeur_pieds3 is None else round(valeur_pieds3 * M3_PAR_PIED3, 4)
-
-
 def id_de(eid):
     """R15 fait 7 : ElementId.Value en Revit 2024+, .IntegerValue avant."""
     if eid is None:
@@ -273,14 +248,6 @@ def texte(valeur):
     if valeur is None:
         return None
     return u"{0}".format(valeur)
-
-
-def classe_de(nz):
-    if abs(nz) > NZ_HORIZONTALE:
-        return u"HORIZONTALE_HAUTE" if nz > 0 else u"HORIZONTALE_BASSE"
-    if abs(nz) < NZ_VERTICALE:
-        return u"VERTICALE"
-    return u"INCLINEE"
 
 
 # --------------------------------------------------------------------------
@@ -542,160 +509,6 @@ def parametre_double(el, nom_bip):
         return None
 
 
-OPTIONS = Options()
-OPTIONS.ComputeReferences = False
-OPTIONS.IncludeNonVisibleObjects = False
-OPTIONS.DetailLevel = ViewDetailLevel.Fine
-
-
-def parcourir_geometrie(element):
-    """(solides pleins, faces libres, nb solides vides, autres types).
-
-    Leve si get_Geometry leve : l'appelant consigne l'erreur."""
-    pleins = []
-    faces_libres = []
-    vides = 0
-    autres = []
-    geo = element.get_Geometry(OPTIONS)
-    if geo is None:
-        return pleins, faces_libres, vides, autres
-    pile = list(geo)
-    while pile:
-        g = pile.pop(0)
-        if isinstance(g, Solid):
-            if g.Volume > 1e-9:
-                pleins.append(g)
-            elif g.Faces.Size > 0:
-                # solide de volume nul mais porteur de faces (plancher de volume ?)
-                vides += 1
-                for f in g.Faces:
-                    faces_libres.append(f)
-            else:
-                vides += 1
-        elif isinstance(g, GeometryInstance):
-            pile.extend(list(g.GetInstanceGeometry()))
-        elif isinstance(g, Face):
-            faces_libres.append(g)
-        else:
-            autres.append(g.GetType().Name)
-    return pleins, faces_libres, vides, autres
-
-
-def centre_uv(face):
-    bb = face.GetBoundingBox()
-    return UV((bb.Min.U + bb.Max.U) / 2.0, (bb.Min.V + bb.Max.V) / 2.0)
-
-
-def normale_de(face):
-    """(XYZ unitaire, methode)."""
-    if isinstance(face, PlanarFace):
-        return face.FaceNormal.Normalize(), u"FaceNormal"
-    return face.ComputeNormal(centre_uv(face)).Normalize(), u"ComputeNormal_centre_uv"
-
-
-def boucle_exterieure(face, normale):
-    """(CurveLoop exterieure, toutes les boucles, methode).
-
-    Les boucles sont lues UNE fois : GetEdgesAsCurveLoops rend des objets
-    neufs a chaque appel, on ne peut donc pas comparer d'un appel a l'autre."""
-    boucles = list(face.GetEdgesAsCurveLoops())
-    if not boucles:
-        return None, boucles, None
-    if len(boucles) == 1:
-        return boucles[0], boucles, u"unique"
-    if isinstance(face, PlanarFace):
-        for b in boucles:
-            try:
-                if b.IsCounterclockwise(normale):
-                    return b, boucles, u"sens_trigo_autour_normale"
-            except Exception:
-                pass
-    plus_longue = max(boucles, key=lambda b: b.GetExactLength())
-    return plus_longue, boucles, u"plus_longue"
-
-
-def points_de_courbe(courbe):
-    """(points, droite ?). Un arc est tessele."""
-    if isinstance(courbe, Line):
-        return [courbe.GetEndPoint(0), courbe.GetEndPoint(1)], True
-    return list(courbe.Tessellate()), False
-
-
-def segments_xy(boucle):
-    """Aretes de la boucle projetees en XY, sans les aretes verticales et
-    sans doublon (le haut et le bas d'une face verticale se projettent sur le
-    meme segment)."""
-    segments = []
-    vus = set()
-    nb_aretes = 0
-    ecartes = 0
-    tesseles = 0
-    for courbe in boucle:
-        nb_aretes += 1
-        pts, droite = points_de_courbe(courbe)
-        if not droite:
-            tesseles += 1
-        for a, b in zip(pts[:-1], pts[1:]):
-            xa, ya, xb, yb = mm(a.X), mm(a.Y), mm(b.X), mm(b.Y)
-            if ((xb - xa) ** 2 + (yb - ya) ** 2) ** 0.5 < TOL_SEGMENT_MM:
-                ecartes += 1
-                continue
-            pa = (round(xa, DECIMALES_MM), round(ya, DECIMALES_MM))
-            pb = (round(xb, DECIMALES_MM), round(yb, DECIMALES_MM))
-            cle = (min(pa, pb), max(pa, pb))
-            if cle in vus:
-                continue
-            vus.add(cle)
-            segments.append([[pa[0], pa[1]], [pb[0], pb[1]]])
-    return segments, nb_aretes, ecartes, tesseles
-
-
-def anneau_xy(boucle):
-    """Contour ferme projete en XY : [[x, y], ...], premier point repete."""
-    pts = []
-    for courbe in boucle:
-        points, droite = points_de_courbe(courbe)
-        for p in points[:-1]:
-            pts.append([rmm(p.X), rmm(p.Y)])
-    if pts:
-        pts.append(list(pts[0]))
-    return pts
-
-
-def decrire_face(face, indice_solide, indice_face):
-    d = OrderedDict()
-    d["solide"] = indice_solide
-    d["face"] = indice_face
-    planaire = isinstance(face, PlanarFace)
-    d["planaire"] = planaire
-    n, methode = normale_de(face)
-    d["normale"] = [round(n.X, 6), round(n.Y, 6), round(n.Z, 6)]
-    if not planaire:
-        d["normale_methode"] = methode
-    classe = classe_de(n.Z)
-    d["classe"] = classe
-    d["aire_m2"] = m2(face.Area)
-    if classe.startswith(u"HORIZONTALE"):
-        if planaire:
-            d["altitude_mm"] = rmm(face.Origin.Z)
-        else:
-            d["altitude_mm"] = rmm(face.Evaluate(centre_uv(face)).Z)
-            d["altitude_methode"] = u"centre_uv_face_non_plane"
-    elif classe == u"VERTICALE":
-        boucle, boucles, methode_b = boucle_exterieure(face, n)
-        d["nb_boucles"] = len(boucles)
-        if len(boucles) > 1:
-            d["boucle_exterieure_methode"] = methode_b
-        if boucle is not None:
-            segs, nb_aretes, ecartes, tesseles = segments_xy(boucle)
-            d["segments_xy"] = segs
-            d["nb_aretes_boucle"] = nb_aretes
-            d["nb_aretes_verticales_ecartees"] = ecartes
-            if tesseles:
-                d["nb_courbes_tesselees"] = tesseles
-    return d
-
-
 # --------------------------------------------------------------------------
 # 3. Collecte - le collecteur est consomme AVANT toute resolution (R15 fait 8)
 # --------------------------------------------------------------------------
@@ -745,6 +558,64 @@ def noter_erreur(eid, etape, err):
     erreurs.append(OrderedDict([
         ("id", id_de(eid)), ("etape", etape), ("message", texte(err)),
     ]))
+
+
+# CAR_Surface_sol - une liste par facon d'echouer, pour que le rapport dise
+# QUOI faire et pas seulement combien.
+surface_ok = []             # eid
+surface_ecart = []          # (ecart m2, eid, nom, portee m2, contour m2)
+surface_absente = []        # (eid, nom) - pas de parametre de ce GUID
+surface_vide = []           # (eid, nom) - parametre present, jamais ecrit
+surface_mauvais_type = []   # (eid, nom, motif)
+surface_sans_contour = []   # (eid, nom, motif)
+face_basse_inclinee = []    # (ecart m2, eid, nom, face basse m2, contour m2)
+
+
+def controler_surface_sol(eid, el, family_name, faces, v):
+    """Rapproche CAR_Surface_sol de l'aire du contour, et decrit la face
+    basse. Remplit v["surface_sol"] et les listes ci-dessus."""
+    s = OrderedDict()
+    anneau, aire, motif = contour_du_volume(faces)
+    s["contour_aire_m2"] = None if aire is None else round(aire, 4)
+    if motif is not None:
+        s["contour_refus"] = motif
+        surface_sans_contour.append((eid, family_name, motif))
+
+    fb = face_basse(faces, aire)
+    s["face_basse"] = fb
+    if fb["inclinee"]:
+        face_basse_inclinee.append((fb["ecart_m2"], eid, family_name,
+                                    fb["aire_m2"], s["contour_aire_m2"]))
+
+    p = parametre_par_guid(el, GUID_SURFACE_SOL)
+    if p is None:
+        s["statut"] = u"ABSENT"
+        surface_absente.append((eid, family_name))
+    else:
+        ok_type, motif_type = est_une_surface(p)
+        if not ok_type:
+            s["statut"] = u"MAUVAIS_TYPE"
+            s["motif"] = motif_type
+            surface_mauvais_type.append((eid, family_name, motif_type))
+        elif not p.HasValue:
+            s["statut"] = u"VIDE"
+            surface_vide.append((eid, family_name))
+        else:
+            portee = interne_vers_m2(p.AsDouble())
+            s["CAR_Surface_sol_m2"] = round(portee, 4)
+            if aire is None:
+                s["statut"] = u"NON_CONTROLABLE"
+            else:
+                ecart = abs(portee - aire)
+                s["ecart_m2"] = round(ecart, 6)
+                if ecart < TOL_SURFACE_SOL_M2:
+                    s["statut"] = u"OK"
+                    surface_ok.append(eid)
+                else:
+                    s["statut"] = u"ECART"
+                    surface_ecart.append((ecart, eid, family_name, portee,
+                                          aire))
+    v["surface_sol"] = s
 
 
 def auditer_volume(eid):
@@ -875,13 +746,15 @@ def auditer_volume(eid):
         v["autres_geometries"] = sorted(set(autres))
     v["volume_solides_m3"] = m3(sum([s.Volume for s in pleins])) if pleins else None
 
-    for i_s, solide in enumerate(pleins):
-        for i_f, face in enumerate(solide.Faces):
-            try:
-                faces.append(decrire_face(face, i_s, i_f))
-            except Exception as err:
-                noter_erreur(eid, u"face {0}.{1}".format(i_s, i_f), err)
+    faces = faces_du_volume(
+        pleins, lambda etape, err: noter_erreur(eid, etape, err))
     v["faces"] = faces
+
+    # --- CAR_Surface_sol contre le contour ------------------------------
+    # Le contour est reconstruit ICI par le code qui a servi a l'ecrire
+    # (bimflow_contour) ; la valeur portee est lue par GUID, jamais par nom.
+    if pleins:
+        controler_surface_sol(eid, el, family_name, faces, v)
 
     # --- constats ------------------------------------------------------
     if not pleins:
@@ -1327,6 +1200,113 @@ if non_in_situ:
     )
 
 # --------------------------------------------------------------------------
+# CAR_Surface_sol - la valeur portee contre le contour reconstruit ici
+# --------------------------------------------------------------------------
+
+nb_controles = (len(surface_ok) + len(surface_ecart) + len(surface_absente)
+                + len(surface_vide) + len(surface_mauvais_type)
+                + len([v for v in volumes
+                       if (v.get("surface_sol") or {}).get("statut")
+                       == u"NON_CONTROLABLE"]))
+out.print_md(u"## CAR_Surface_sol")
+out.print_md(
+    u"Projection horizontale du contour, ecrite par **MAJ params volumes**, "
+    u"relue ici **par GUID** (`{0}`) et rapprochee du contour reconstruit par "
+    u"le meme code (`lib\\bimflow_contour`). Tolerance : **{1} m²**.\n\n"
+    u"| Resultat | Volumes |\n|---|---:|\n"
+    u"| **Conformes** | {2} |\n"
+    u"| Ecart au contour | {3} |\n"
+    u"| Parametre absent (non lie, ou autre GUID) | {4} |\n"
+    u"| Parametre present mais jamais ecrit | {5} |\n"
+    u"| Parametre qui n'est pas une Surface | {6} |\n"
+    u"| Contour non reconstruit | {7} |\n"
+    u"| *Total controle* | *{8}* |".format(
+        GUID_SURFACE_SOL, TOL_SURFACE_SOL_M2, len(surface_ok),
+        len(surface_ecart), len(surface_absente), len(surface_vide),
+        len(surface_mauvais_type), len(surface_sans_contour), nb_controles)
+)
+if surface_ecart:
+    surface_ecart.sort(reverse=True)
+    liste_md(
+        u"CAR_Surface_sol en ecart avec le contour - relancer MAJ params "
+        u"volumes, ou chercher qui a saisi a la main",
+        [u"- **{0:.4f} m²** : {1} `{2}` porte {3:.4f}, contour {4:.4f}".format(
+            e, lien(i), n, p, a) for e, i, n, p, a in surface_ecart],
+    )
+if surface_absente:
+    liste_md(
+        u"CAR_Surface_sol absent - lier le parametre (bouton Socle parametres)",
+        [u"- {0} `{1}`".format(lien(e), n) for e, n in surface_absente[:40]]
+        + ([u"- ... et {0} autre(s)".format(len(surface_absente) - 40)]
+           if len(surface_absente) > 40 else []),
+    )
+if surface_vide:
+    liste_md(
+        u"CAR_Surface_sol jamais ecrit - lancer MAJ params volumes",
+        [u"- {0} `{1}`".format(lien(e), n) for e, n in surface_vide[:40]]
+        + ([u"- ... et {0} autre(s)".format(len(surface_vide) - 40)]
+           if len(surface_vide) > 40 else []),
+    )
+if surface_mauvais_type:
+    liste_md(
+        u"Un parametre porte le GUID de CAR_Surface_sol sans etre une Surface",
+        [u"- {0} `{1}` : {2}".format(lien(e), n, m)
+         for e, n, m in surface_mauvais_type],
+    )
+if surface_sans_contour:
+    liste_md(
+        u"Contour non reconstruit - aucune surface au sol possible",
+        [u"- {0} `{1}` : {2}".format(lien(e), n, m)
+         for e, n, m in surface_sans_contour],
+    )
+
+liste_md(
+    u"Volumes a face basse inclinee - la surface au sol est la PROJECTION",
+    [u"- {0} `{1}` : face basse **{2:.3f} m²**, projection {3} m², "
+     u"ecart **{4}**".format(
+         lien(i), n, fb,
+         u"?" if a is None else u"{0:.3f}".format(a),
+         u"?" if e is None else u"{0:+.3f} m²".format(e))
+     for e, i, n, fb, a in sorted(face_basse_inclinee,
+                                  key=lambda t: -(t[0] or 0))],
+    vide=u"*Aucun : toutes les faces basses sont horizontales, la face et sa "
+         u"projection se confondent.*",
+)
+if face_basse_inclinee:
+    out.print_md(
+        u"> Sur ces volumes, `CAR_Surface_sol` est **l'ombre au sol** du "
+        u"volume, pas l'aire de sa face basse, qui est plus grande. C'est la "
+        u"definition retenue [H] ; a trancher si la nomenclature doit un jour "
+        u"compter autre chose."
+    )
+
+# Sommes par REF_Batiment x REF_Etage : la valeur portee, et le contour.
+# REF_Batiment est lu tel que la maquette le porte, REF_Etage dans le nom.
+sommes = {}
+for v in volumes:
+    s = v.get("surface_sol") or {}
+    etage = (v.get("segments") or {}).get("REF_Etage")
+    nature = (v.get("segments") or {}).get("CLS_Nature_volume")
+    bat = ((v.get("parametres") or {}).get("REF_Batiment") or {}).get("valeur")
+    for cle in ((bat or u"?", etage or u"?"), (u"TOTAL ETAGE", u"")
+                if nature == u"ETAGE" else None):
+        if cle is None:
+            continue
+        ligne = sommes.setdefault(cle, [0, 0.0, 0.0])
+        ligne[0] += 1
+        ligne[1] += s.get("CAR_Surface_sol_m2") or 0.0
+        ligne[2] += s.get("contour_aire_m2") or 0.0
+if sommes:
+    lignes = [u"| REF_Batiment | REF_Etage | Volumes | CAR_Surface_sol m² | "
+              u"Contour m² | Ecart m² |", u"|---|---|---:|---:|---:|---:|"]
+    for cle in sorted(sommes.keys(), key=lambda c: (c[0] == u"TOTAL ETAGE", c)):
+        n, car, cnt = sommes[cle]
+        lignes.append(u"| {0} | {1} | {2} | {3:.2f} | {4:.2f} | {5:+.3f} |".format(
+            cle[0], cle[1], n, car, cnt, car - cnt))
+    out.print_md(u"### Sommes par batiment et etage")
+    out.print_md(u"\n".join(lignes))
+
+# --------------------------------------------------------------------------
 # Contraintes Ivion - ce qui se repare ICI plutot qu'en aval
 # --------------------------------------------------------------------------
 
@@ -1508,6 +1488,21 @@ racine["constats"] = OrderedDict([
     ("avec_face_non_plane", [id_de(e) for e, n, k in avec_non_plane]),
     ("non_in_situ", [id_de(e) for e, n in non_in_situ]),
     ("mass_floors_vide", len(mass_floors) == 0),
+    # Le detail par volume est dans volumes[].surface_sol ; ici, les listes.
+    ("CAR_Surface_sol", OrderedDict([
+        ("guid", GUID_SURFACE_SOL),
+        ("tolerance_m2", TOL_SURFACE_SOL_M2),
+        ("nb_conformes", len(surface_ok)),
+        ("en_ecart", [OrderedDict([("id", id_de(i)), ("family_name", texte(n)),
+                                   ("ecart_m2", round(e, 6))])
+                      for e, i, n, p, a in surface_ecart]),
+        ("absent", [id_de(e) for e, n in surface_absente]),
+        ("jamais_ecrit", [id_de(e) for e, n in surface_vide]),
+        ("pas_une_surface", [id_de(e) for e, n, m in surface_mauvais_type]),
+        ("contour_non_reconstruit", [id_de(e) for e, n, m in surface_sans_contour]),
+        ("face_basse_inclinee", [id_de(i) for e, i, n, fb, a
+                                 in face_basse_inclinee]),
+    ])),
 ])
 racine["erreurs"] = erreurs
 
