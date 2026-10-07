@@ -7,7 +7,9 @@ soit le brief. Si un brief les contredit, signale-le avant d'agir.
 - Ne jamais committer sur `dev` ni sur `main`. Toujours : branche `feature/<sujet>` depuis
   `origin/dev` à jour, puis PR vers `dev`. La fusion vers `main` est décidée par Bruno.
 - Commits en français, à l'impératif, une chose logique par commit.
-- Aucune mention d'IA, y compris la ligne `Co-Authored-By`.
+- Aucune mention d'IA, y compris la ligne `Co-Authored-By` — commits ET descriptions de PR.
+  `.claude\settings.json` la désactive (`attribution.commit` et `attribution.pr` à `false`).
+  La règle vaut pour la suite : l'historique déjà publié n'est pas réécrit.
 - Le dépôt est dans Dropbox : l'index peut être verrouillé pendant la synchronisation.
   Vérifier `git show --stat` sur chaque commit avant de pousser.
 - pyRevit lit le dossier de travail de ce dépôt : ne jamais changer de branche sans vérifier
@@ -39,15 +41,19 @@ soit le brief. Si un brief les contredit, signale-le avant d'agir.
 ## Discipline des outils
 - Lecture seule d'abord : tout outil qui écrit est précédé d'un audit en lecture seule du même
   périmètre.
-- Un outil qui écrit : `SIMULATION = True` par défaut, confirmation nommant la maquette avant
-  écriture, refus et exclusions affichés AVANT l'écriture, jamais une annulation silencieuse.
+- Un outil qui écrit ne doit jamais agir d'un simple clic. Deux formes admises, l'une OU
+  l'autre (`docs\organisation_ruban.md` §4) : (a) `SIMULATION = True` en tête de script, ou
+  (b) plan calculé et affiché en entier, puis confirmation nommant la maquette. Dans les deux
+  cas : refus et exclusions affichés AVANT l'écriture, jamais une annulation silencieuse. Les
+  boutons existants restent tels quels.
 - Aucune indisponibilité silencieuse : une valeur illisible est écrite `NON_LU` et signalée.
 - Vocabulaire : jamais « supprimable », « inutile », « en trop » ; écrire ce qui est mesuré.
 - Sous-projets fermés : les détecter et le dire avant tout chiffre.
 
 ## Ruban et fichiers
 - Placement des boutons : suivre `docs\organisation_ruban.md` et le `_ROLE.txt` de chaque panneau.
-- Noms de dossiers de bouton en ASCII sans accent ; titre affiché par `__title__`.
+- Noms de dossiers de bouton en ASCII sans accent ; titre affiché par `__title__` dans le
+  script ou par `title:` dans `bundle.yaml` — les deux sont admis.
 - Icône bleue = lecture seule ; voir `docs\organisation_ruban.md` pour les autres.
 - Sorties : dossier choisi par l'utilisateur (`forms.pick_folder` / `forms.save_file`), ou dossier
   fixe documenté et affiché en fin d'exécution ; jamais un chemin Bureau reconstruit.
