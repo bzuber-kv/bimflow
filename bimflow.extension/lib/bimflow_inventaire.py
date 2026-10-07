@@ -34,7 +34,9 @@ except ImportError:            # disponibilite non verifiee sous IPY342
     unicodedata = None
 
 
-SCHEMA = u"bimflow.inventaire/0.1"
+# 0.2 (2026-10-07, apres recette) : 11_systemes separe Nb_terminaux_api et
+# Nb_elements_reseau ; 90_anomalies porte une colonne Nature.
+SCHEMA = u"bimflow.inventaire/0.2"
 
 NON_LU = u"NON_LU"
 OUI = u"OUI"
@@ -71,6 +73,18 @@ RENSEIGNE = u"RENSEIGNE"
 # Type de systeme lu sur un element mais absent des systemes du document.
 INTROUVABLE = u"INTROUVABLE"
 
+# Systeme sans equipement de base : MEPSystem.BaseEquipment rend null.
+AUCUN = u"AUCUN"
+
+# Nature d'une anomalie. ERREUR : une lecture a echoue, ou un objet n'a pas
+# pu etre lu. NON_APPLICABLE : limite de lecture PREVUE - famille sans
+# occurrence, propriete sans objet pour un circuit de reserve, categorie
+# inconnue de la version, lien imbrique (v0). Seules les ERREUR comptent
+# comme ecart au controle 99.
+NATURE_ERREUR = u"ERREUR"
+NATURE_NON_APPLICABLE = u"NON_APPLICABLE"
+NATURES_ANOMALIE = (NATURE_ERREUR, NATURE_NON_APPLICABLE)
+
 
 # ---------------------------------------------------------------------------
 # 1. Schema des sorties
@@ -91,7 +105,8 @@ TABLES = (
     (u"systemes", u"11_systemes.csv", (
         u"Domaine", u"Id", u"Nom", u"Prefixe_nom", u"Type_systeme",
         u"Abreviation_type", u"Classification", u"Prefixe_coherent",
-        u"Equipement_base", u"Nb_elements_parametre", u"Nb_elements_api")),
+        u"Equipement_base", u"Nb_elements_parametre", u"Nb_terminaux_api",
+        u"Nb_elements_reseau")),
     (u"systemes_categories", u"12_systemes_categories.csv", (
         u"Systeme", u"Type_systeme", u"Categorie", u"Nb")),
     (u"elements_sans_systeme", u"13_elements_sans_systeme.csv", (
@@ -137,7 +152,7 @@ TABLES = (
         u"Nomenclature", u"Categorie", u"Champ", u"Parametre_id",
         u"Parametre_GUID", u"Origine")),
     (u"anomalies", u"90_anomalies.csv", (
-        u"Table", u"Id", u"Propriete", u"Raison")),
+        u"Nature", u"Table", u"Id", u"Propriete", u"Raison")),
     (u"controles", u"99_controles.csv", (
         u"Controle", u"Attendu", u"Mesure", u"Statut")),
 )
@@ -676,19 +691,35 @@ class Inventaire(object):
         self.tables[table].append(ligne)
         return ligne
 
-    def anomalie(self, source, table, ident, propriete, raison):
+    def anomalie(self, source, table, ident, propriete, raison,
+                 nature=NATURE_ERREUR):
+        if nature not in NATURES_ANOMALIE:
+            raise ValueError(u"nature d'anomalie inconnue : {0}".format(nature))
         return self.ajouter(u"anomalies", source, {
-            u"Table": table, u"Id": ident, u"Propriete": propriete,
-            u"Raison": raison})
+            u"Nature": nature, u"Table": table, u"Id": ident,
+            u"Propriete": propriete, u"Raison": raison})
 
-    def lire(self, source, table, ident, propriete, fonction):
+    def non_applicable(self, source, table, ident, propriete, raison):
+        """Limite de lecture PREVUE : publiee, mais pas comptee en ecart."""
+        return self.anomalie(source, table, ident, propriete, raison,
+                             NATURE_NON_APPLICABLE)
+
+    def lire(self, source, table, ident, propriete, fonction,
+             nature=NATURE_ERREUR):
         """Appelle fonction() ; en cas d'erreur, publie l'anomalie et rend
-        NON_LU. C'est le seul endroit ou une erreur de lecture est attrapee."""
+        NON_LU. C'est le seul endroit ou une erreur de lecture est attrapee.
+        nature=NON_APPLICABLE quand l'appelant sait que la propriete peut
+        etre sans objet pour cet objet (circuit de reserve)."""
         try:
             return fonction()
         except Exception as err:
-            self.anomalie(source, table, ident, propriete, texte_erreur(err))
+            self.anomalie(source, table, ident, propriete, texte_erreur(err),
+                          nature)
             return NON_LU
+
+    def nombre_anomalies(self, source=None, nature=None):
+        return len([l for l in self.lignes(u"anomalies", source)
+                    if nature is None or l[u"Nature"] == nature])
 
     def compter_echec(self, source, table, ident, propriete, err):
         """Echec de lecture repetitif (une valeur par element) : compte, pour
@@ -801,6 +832,31 @@ def calculer_controles(inv):
             u"Statut": _statut(total >= lus),
         }))
 
+        # 1 bis. Cote systeme : deux instruments, terminaux (MEPSystem.
+        # Elements) et reseau (PipingNetwork / DuctNetwork). Publies a cote
+        # du compte cote element, jamais soustraits : un ecart ne prouve rien
+        # (R15 fait 3). Le controle ne porte que sur leur lisibilite.
+        terminaux = reseau = 0
+        illisibles = 0
+        for l in inv.lignes(u"systemes", src):
+            t = _entier(l[u"Nb_terminaux_api"])
+            r = _entier(l[u"Nb_elements_reseau"])
+            if t is None or r is None:
+                illisibles += 1
+            else:
+                terminaux += t
+                reseau += r
+        produits.append(inv.ajouter(u"controles", src, {
+            u"Controle": u"Cote systeme : terminaux et reseau lus pour chaque "
+                         u"systeme",
+            u"Attendu": u"0 systeme NON_LU",
+            u"Mesure": u"{0} systeme(s) NON_LU ; terminaux {1} + reseau {2} = "
+                       u"{3} (cote element : {4}, autre instrument)".format(
+                           illisibles, terminaux, reseau, terminaux + reseau,
+                           somme),
+            u"Statut": _statut(illisibles == 0),
+        }))
+
         # 2. Familles : somme des occurrences = occurrences des categories.
         somme_fam = 0
         illisibles = 0
@@ -839,15 +895,18 @@ def calculer_controles(inv):
             u"Statut": _statut(not absents),
         }))
 
-    # 4. Anomalies, par maquette puis au total - compte AVANT ce controle.
-    total = len(inv.tables[u"anomalies"])
+    # 4. Anomalies, par maquette - comptees AVANT ce controle. Seules les
+    # ERREUR font un ecart ; les NON_APPLICABLE sont des limites prevues.
+    total = inv.nombre_anomalies(nature=NATURE_ERREUR)
     for modele in inv.modeles:
         src = modele[u"source_modele"]
-        n = len(inv.lignes(u"anomalies", src))
+        n = inv.nombre_anomalies(src, NATURE_ERREUR)
+        na = inv.nombre_anomalies(src, NATURE_NON_APPLICABLE)
         produits.append(inv.ajouter(u"controles", src, {
-            u"Controle": u"Nombre d'anomalies (90_anomalies.csv)",
+            u"Controle": u"Anomalies de nature ERREUR (90_anomalies.csv)",
             u"Attendu": u"0",
-            u"Mesure": u"{0} (toutes maquettes : {1})".format(n, total),
+            u"Mesure": u"{0} ERREUR (toutes maquettes : {1}) ; {2} "
+                       u"NON_APPLICABLE, hors ecart".format(n, total, na),
             u"Statut": _statut(n == 0),
         }))
     return produits
