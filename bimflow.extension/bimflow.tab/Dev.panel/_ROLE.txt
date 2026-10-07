@@ -39,6 +39,13 @@ Y est, et l'ordre d'emploi est celui-la :
     commande et fait TOUT annuler par Revit, en silence. Elle reste ici
     parce qu'elle repond vite, pas parce qu'une question l'attend.
 
+  + Table sous-projets (ECRITURE, NON EPROUVE, 2026-10-07) - exporte la
+    table des sous-projets en CSV, puis applique une table editee : GARDER,
+    RENOMMER, CREER. Aucun element deplace. Successeur de B14 (rangee dans
+    _a_supprimer\). Panneau definitif propose : Calage projet, domaine
+    sous-projets - declare sature, donc a trancher (B25). Doc :
+    docs\sous_projets.md
+
 Les trois premiers ont tourne : la regle de sortie leur est acquise, et leur
 panneau definitif reste a decider (B25). Ils restent ici en attendant cette
 decision, avec dans chaque en-tete ce qui a ete MESURE, et sur quoi.
