@@ -18,7 +18,7 @@ figure dans 90_anomalies.csv. Detail : docs\\inventaire_systemes.md
 __title__ = "Inventaire\nsystèmes"
 __author__ = "Keovia Solutions inc."
 
-VERSION = u"2026-10-07a"
+VERSION = u"2026-10-07b"
 
 # pyRevit v6.5.5 / IronPython 3.4.2 (IPY342) - pas de f-string, pas de
 # shebang, syntaxe 3.4. Toute la logique qui suit la lecture vit dans
@@ -180,9 +180,24 @@ def famille_et_type(d, el):
     return t.FamilyName, nom_element(t)
 
 
-def decrire_equipement(d, eq):
-    if eq is None:
+def nom_categorie(d, cid):
+    """Nom d'une categorie par son id. Les ids negatifs sont ceux de
+    BuiltInCategory, qui ne sont PAS des elements : doc.GetElement ne les
+    trouve pas (48 anomalies a la recette du 2026-10-07)."""
+    if not valide(cid):
         return u""
+    cat = Category.GetCategory(d, cid)
+    if cat is None:
+        raise LookupError(u"categorie {0} introuvable".format(idv(cid)))
+    return cat.Name
+
+
+def decrire_equipement(d, eq):
+    """Equipement de base d'un systeme. MEPSystem.BaseEquipment rend null
+    quand le systeme n'en a pas : la cellule le dit (AUCUN), elle ne reste
+    pas vide."""
+    if eq is None:
+        return L.AUCUN
     famille, typ = famille_et_type(d, eq)
     return u"{0} : {1} [{2}]".format(famille, typ, idv(eq.Id))
 
@@ -198,8 +213,9 @@ class Contexte(object):
         self.table_ss = d.GetWorksetTable() if d.IsWorkshared else None
         self.noms_lies = set()       # noms des parametres lies au projet
 
-    def lire(self, table, ident, propriete, fonction):
-        return inv.lire(self.src, table, ident, propriete, fonction)
+    def lire(self, table, ident, propriete, fonction,
+             nature=L.NATURE_ERREUR):
+        return inv.lire(self.src, table, ident, propriete, fonction, nature)
 
     def sous_projet(self, el):
         if self.table_ss is None:
@@ -259,6 +275,15 @@ PARAMS_TYPE_SYSTEME = ("RBS_PIPING_SYSTEM_TYPE_PARAM",
                        "RBS_DUCT_SYSTEM_TYPE_PARAM")
 
 
+def taille_reseau(s, domaine):
+    """PipingSystem.PipingNetwork : "Pipes and fittings which are contained
+    in this system" ; MechanicalSystem.DuctNetwork : "The ducts and fittings
+    contained within the system" (API 2026)."""
+    if domaine == u"TUYAUTERIE":
+        return s.PipingNetwork.Size
+    return s.DuctNetwork.Size
+
+
 def type_systeme_de(el):
     """Type de systeme porte par l'element (parametre natif), ou None."""
     for nom_bip in PARAMS_TYPE_SYSTEME:
@@ -315,8 +340,13 @@ def lire_systemes(ctx):
                 T, i, u"Equipement_base",
                 lambda: decrire_equipement(d, s.BaseEquipment)),
             u"Nb_elements_parametre": None,
-            u"Nb_elements_api": ctx.lire(
-                T, i, u"Nb_elements_api", lambda: s.Elements.Size),
+            # Elements : terminaux et equipements seulement (doc API :
+            # "Terminal elements in the system"). Le reseau - canalisations
+            # ou gaines, et raccords - est lu a part.
+            u"Nb_terminaux_api": ctx.lire(
+                T, i, u"Nb_terminaux_api", lambda: s.Elements.Size),
+            u"Nb_elements_reseau": ctx.lire(
+                T, i, u"Nb_elements_reseau", lambda: taille_reseau(s, domaine)),
         })
 
     for nom, types in types_par_nom.items():
@@ -331,7 +361,7 @@ def lire_systemes(ctx):
     for nom_bic in L.CATEGORIES_SYSTEME:
         bic = categorie_native(nom_bic)
         if bic is None:
-            inv.anomalie(ctx.src, u"elements_sans_systeme", nom_bic,
+            inv.non_applicable(ctx.src, u"elements_sans_systeme", nom_bic,
                          u"Categorie",
                          u"categorie inconnue de cette version de Revit")
             continue
@@ -513,6 +543,10 @@ def lire_types_canalisation(ctx):
 # 3. Electricite (tables 20 a 22)
 # ---------------------------------------------------------------------------
 
+# Valeurs de CircuitType pour lesquelles une propriete peut etre sans objet.
+CIRCUITS_RESERVE = (u"Spare", u"Space")
+
+
 def lire_electricite(ctx):
     d = ctx.d
 
@@ -523,25 +557,32 @@ def lire_electricite(ctx):
         tic()
         c = d.GetElement(eid)
         i = idv(eid)
-        base = ctx.lire(T, i, u"Tableau_id", lambda: c.BaseEquipment)
+        type_circuit = ctx.lire(T, i, u"Type_circuit",
+                                lambda: u"{0}".format(c.CircuitType))
+        # Circuit de reserve ou espace : charge, tension, elements peuvent
+        # etre sans objet. Leur echec est une limite prevue, pas une erreur.
+        nature = (L.NATURE_NON_APPLICABLE if type_circuit in CIRCUITS_RESERVE
+                  else L.NATURE_ERREUR)
+
+        def lire_c(propriete, fonction):
+            return ctx.lire(T, i, propriete, fonction, nature)
+
+        base = lire_c(u"Tableau_id", lambda: c.BaseEquipment)
         if base is not None and not non_lu(base):
             cle = idv(base.Id)
             circuits_par_tableau[cle] = circuits_par_tableau.get(cle, 0) + 1
         inv.ajouter(T, ctx.src, {
             u"Id": i,
-            u"Tableau": ctx.lire(T, i, u"Tableau", lambda: c.PanelName),
-            u"Numero": ctx.lire(T, i, u"Numero", lambda: c.CircuitNumber),
+            u"Tableau": lire_c(u"Tableau", lambda: c.PanelName),
+            u"Numero": lire_c(u"Numero", lambda: c.CircuitNumber),
             u"Type_systeme_elec": ctx.lire(
                 T, i, u"Type_systeme_elec",
                 lambda: u"{0}".format(c.SystemType)),
-            u"Type_circuit": ctx.lire(T, i, u"Type_circuit",
-                                      lambda: u"{0}".format(c.CircuitType)),
-            u"Nom_charge": ctx.lire(T, i, u"Nom_charge", lambda: c.LoadName),
-            u"Tension_V": ctx.lire(T, i, u"Tension_V",
-                                   lambda: en_volts(c.Voltage)),
-            u"Nb_poles": ctx.lire(T, i, u"Nb_poles", lambda: c.PolesNumber),
-            u"Nb_elements": ctx.lire(T, i, u"Nb_elements",
-                                     lambda: c.Elements.Size),
+            u"Type_circuit": type_circuit,
+            u"Nom_charge": lire_c(u"Nom_charge", lambda: c.LoadName),
+            u"Tension_V": lire_c(u"Tension_V", lambda: en_volts(c.Voltage)),
+            u"Nb_poles": lire_c(u"Nb_poles", lambda: c.PolesNumber),
+            u"Nb_elements": lire_c(u"Nb_elements", lambda: c.Elements.Size),
         })
 
     # Tableaux (21) : les occurrences d'equipement electrique.
@@ -660,7 +701,7 @@ def convertir_regle(ctx, regle, fid):
     if classe == u"FilterCategoryRule":
         r[u"operateur"] = classe
         r[u"valeur"] = ctx.lire(T, fid, u"Valeur", lambda: [
-            nom_par_id(ctx.d, c) for c in regle.GetCategories()])
+            nom_categorie(ctx.d, c) for c in regle.GetCategories()])
         return r
 
     pid = ctx.lire(T, fid, u"Parametre_id", lambda: regle.GetRuleParameter())
@@ -803,7 +844,7 @@ def lire_filtres(ctx):
         if isinstance(f, ParameterFilterElement):
             classe = u"REGLES"
             categories = ctx.lire(T, i, u"Categories", lambda: sorted(
-                [nom_par_id(d, c) for c in f.GetCategories()]))
+                [nom_categorie(d, c) for c in f.GetCategories()]))
             arbre = ctx.lire(T, i, u"Regles",
                              lambda: convertir_filtre(ctx, f.GetElementFilter(),
                                                       i))
@@ -997,13 +1038,13 @@ def lire_familles(ctx):
     for nom_bic, libelle in L.CATEGORIES_CIBLES:
         bic = categorie_native(nom_bic)
         if bic is None:
-            inv.anomalie(ctx.src, T, nom_bic, u"Categorie",
+            inv.non_applicable(ctx.src, T, nom_bic, u"Categorie",
                          u"categorie '{0}' inconnue de cette version de "
                          u"Revit".format(libelle))
             continue
         cat = Category.GetCategory(d, bic)
         if cat is None:
-            inv.anomalie(ctx.src, T, nom_bic, u"Categorie",
+            inv.non_applicable(ctx.src, T, nom_bic, u"Categorie",
                          u"categorie '{0}' absente du document".format(
                              libelle))
             continue
@@ -1049,7 +1090,7 @@ def lire_familles(ctx):
             tic()
             accumuler(ctx, el, u"OCCURRENCE", cle_famille, accumulateurs)
         if not occurrences:
-            inv.anomalie(ctx.src, u"familles_parametres", cle_famille,
+            inv.non_applicable(ctx.src, u"familles_parametres", cle_famille,
                          u"Parametres d'occurrence",
                          u"0 occurrence : parametres d'occurrence non lus "
                          u"(la famille n'est pas ouverte)")
@@ -1098,7 +1139,7 @@ def lire_nomenclatures(ctx):
         if non_lu(definition):
             continue
         categorie = ctx.lire(T, i, u"Categorie",
-                             lambda: nom_par_id(d, definition.CategoryId))
+                             lambda: nom_categorie(d, definition.CategoryId))
         nb = ctx.lire(T, i, u"Champs", lambda: definition.GetFieldCount())
         if non_lu(nb):
             continue
@@ -1315,9 +1356,13 @@ def liste_fermes(valeur):
 for lien in liens:
     if lien[u"doc"] is not None or lien.get(u"doublon"):
         continue
+    # Lien imbrique : limite prevue de la v0. Lien decharge : la maquette
+    # n'a pas pu etre lue, c'est une erreur de lecture.
+    nature = L.NATURE_ERREUR
     if lien[u"imbrique"] is True:
         statut = L.IMBRIQUE_NON_LU
         raison = u"lien imbrique : non lu (v0)"
+        nature = L.NATURE_NON_APPLICABLE
     elif non_lu(lien[u"imbrique"]):
         statut = L.ERREUR
         raison = u"nature du lien illisible : non lu"
@@ -1325,7 +1370,7 @@ for lien in liens:
         statut = L.NON_CHARGE
         raison = u"lien decharge, introuvable ou sans document : non lu"
     inv.anomalie(SRC_HOTE, u"modeles", lien[u"type_id"], u"statut_lecture",
-                 raison)
+                 raison, nature)
     inv.ajouter_modele(lien[u"source"], L.ROLE_LIEN, lien[u"nom"], u"",
                        L.NON_LU, L.NON_LU, statut, [])
 
@@ -1403,9 +1448,10 @@ out.print_table(
                 for c in inv.tables[u"controles"]],
     columns=[u"Source", u"Controle", u"Attendu", u"Mesure", u"Statut"])
 
-nb_anomalies = len(inv.tables[u"anomalies"])
-out.print_md(u"**Anomalies : {0}** - detail dans `90_anomalies.csv`.".format(
-    nb_anomalies))
+out.print_md(u"**Anomalies : {0} ERREUR**, et {1} NON_APPLICABLE (limites de "
+             u"lecture prevues) - detail dans `90_anomalies.csv`.".format(
+                 inv.nombre_anomalies(nature=L.NATURE_ERREUR),
+                 inv.nombre_anomalies(nature=L.NATURE_NON_APPLICABLE)))
 
 sans_vue = [f for f in inv.tables[u"filtres"]
             if f[u"Nb_vues"] == 0 and f[u"Nb_gabarits"] == 0]
