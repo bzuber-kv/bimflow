@@ -1,0 +1,24 @@
+{
+ "description": "Elements MEP tels que l'adaptateur les lit (cote element) : un element dans deux systemes, un sans systeme, un au nom illisible, un dans un systeme absent du document.",
+ "types_par_systeme": {
+  "EF 1": ["Eau froide domestique"],
+  "ECA 1": ["Eau chaude domestique"],
+  "SOU 1": ["Air soufflé"]
+ },
+ "elements": [
+  {"id": 101, "categorie": "Canalisations", "famille": "Canalisation", "type": "Cuivre",
+   "niveau": "FLOOR_1", "sous_projet": "PLB", "noms_systeme": "EF 1", "type_systeme_id": 11},
+  {"id": 102, "categorie": "Canalisations", "famille": "Canalisation", "type": "Cuivre",
+   "niveau": "FLOOR_1", "sous_projet": "PLB", "noms_systeme": "EF 1", "type_systeme_id": 11},
+  {"id": 103, "categorie": "Équipement de plomberie", "famille": "Chauffe-eau", "type": "200 L",
+   "niveau": "BASEMENT", "sous_projet": "PLB", "noms_systeme": "EF 1,ECA 1", "type_systeme_id": null},
+  {"id": 104, "categorie": "Gaines", "famille": "Gaine rectangulaire", "type": "Standard",
+   "niveau": "FLOOR_2", "sous_projet": "CVC", "noms_systeme": "SOU 1", "type_systeme_id": 21},
+  {"id": 105, "categorie": "Bouches d'aération", "famille": "Diffuseur", "type": "600x600",
+   "niveau": "FLOOR_2", "sous_projet": "CVC", "noms_systeme": "", "type_systeme_id": null},
+  {"id": 106, "categorie": "Raccords de canalisation", "famille": "Coude", "type": "Standard",
+   "niveau": "FLOOR_1", "sous_projet": "PLB", "noms_systeme": "NON_LU", "type_systeme_id": 11},
+  {"id": 107, "categorie": "Canalisations", "famille": "Canalisation", "type": "PVC",
+   "niveau": "FLOOR_1", "sous_projet": "PLB", "noms_systeme": "GAZ 9", "type_systeme_id": 12}
+ ]
+}

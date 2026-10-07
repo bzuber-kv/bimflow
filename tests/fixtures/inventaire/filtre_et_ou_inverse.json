@@ -1,0 +1,43 @@
+{
+ "description": "Arbre de filtre tel que l'adaptateur le convertit depuis GetElementFilter() : ET racine, une regle de texte, un OU inverse contenant une regle numerique et une regle inverse.",
+ "arbre": {
+  "type": "ET",
+  "inverse": false,
+  "enfants": [
+   {
+    "type": "PARAMETRES",
+    "inverse": false,
+    "regles": [
+     {"parametre": "Nom du système", "parametre_id": -1140325, "parametre_guid": "",
+      "operateur": "FilterStringBeginsWith", "valeur": "EF",
+      "valeur_unites_internes": false, "inverse": false}
+    ]
+   },
+   {
+    "type": "OU",
+    "inverse": true,
+    "enfants": [
+     {
+      "type": "PARAMETRES",
+      "inverse": false,
+      "regles": [
+       {"parametre": "Diamètre", "parametre_id": -1140228, "parametre_guid": "",
+        "operateur": "FilterNumericGreater", "valeur": 0.164041994750656,
+        "valeur_unites_internes": true, "inverse": false}
+      ]
+     },
+     {
+      "type": "PARAMETRES",
+      "inverse": false,
+      "regles": [
+       {"parametre": "REF_Batiment", "parametre_id": 912345,
+        "parametre_guid": "0b6c7e2a-1111-4c2b-9a77-2f4f3d1e8a10",
+        "operateur": "FilterStringEquals", "valeur": "Junior",
+        "valeur_unites_internes": false, "inverse": true}
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}
