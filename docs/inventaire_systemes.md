@@ -6,8 +6,11 @@
 > « réseaux et systèmes » ; spec : `WORK\dev\bimflow\actions\2026-10-07_SPEC_inventaire_systemes_equipements_v0.md` (v0.1).
 > Environnement : Revit 2026, pyRevit 6.5.5, moteur **IPY342** — pas de shebang
 > python3, niveau de langage Python 3.4 maximum (pas de f-strings).
-> **Statut : écrit et testé hors Revit, NON ÉPROUVÉ sous Revit.** Tant que la
-> recette (§6) n'est pas passée, rien de ce qui touche l'API n'est mesuré.
+> **Statut : recette faite par Bruno le 2026-10-07 sur une copie détachée de
+> `thestudy_ME_EX` — outil fonctionnel.** Quatre corrections en ont résulté
+> (version `2026-10-07b`, schéma `0.2`) : catégories lues comme catégories,
+> réseau des systèmes, equipement de base dit `AUCUN`, nature des anomalies.
+> Ces corrections ne sont **pas encore repassées** sous Revit (§6).
 
 ---
 
@@ -47,7 +50,7 @@ familles) se prennent **hors de l'outil**, sur ses sorties.
    existe déjà). Aucun chemin n'est construit à la place de l'utilisateur.
 6. Barre de progression, **annulable** : une annulation n'écrit aucun fichier.
 7. En fin d'exécution, l'écran affiche les maquettes lues, les **contrôles 99**
-   et le **nombre d'anomalies**.
+   et le **nombre d'anomalies**, `ERREUR` et `NON_APPLICABLE` séparées.
 
 Sur une maquette centrale non détachée, l'inventaire décrit l'état
 **synchronisé** à l'instant de la lecture : le travail non synchronisé des
@@ -66,7 +69,7 @@ en cas d'homonymie).
 
 | Fichier | Une ligne = |
 |---|---|
-| `inventaire.json` | tout : `schema` (`bimflow.inventaire/0.1`), `outil`, `modeles`, puis un tableau par CSV, mêmes colonnes |
+| `inventaire.json` | tout : `schema` (`bimflow.inventaire/0.2`), `outil`, `modeles`, puis un tableau par CSV, mêmes colonnes |
 | `10_types_systeme.csv` | type de système (tuyauterie ou gaine) |
 | `11_systemes.csv` | système (réseau) |
 | `12_systemes_categories.csv` | (système, catégorie) — compté côté élément |
@@ -83,7 +86,7 @@ en cas d'homonymie).
 | `50_parametres_projet.csv` | paramètre lié au projet |
 | `51_parametres_partages.csv` | `SharedParameterElement` du document |
 | `60_nomenclatures_champs.csv` | champ de nomenclature |
-| `90_anomalies.csv` | lecture échouée ou objet non lu |
+| `90_anomalies.csv` | lecture échouée ou objet non lu, avec sa `Nature` (`ERREUR` ou `NON_APPLICABLE`) |
 | `99_controles.csv` | contrôle arithmétique |
 
 Colonnes exactes : constante `TABLES` de `bimflow.extension\lib\bimflow_inventaire.py`
@@ -102,6 +105,16 @@ plus les compteurs des contrôles.
   canalisation) ou *valeur vide dans Revit*, jamais *pas lu*. Les lectures
   répétées par élément (valeurs de paramètres de famille) sont regroupées :
   une anomalie par (famille, paramètre), avec le nombre d'échecs.
+- **Nature d'une anomalie** — `ERREUR` : une lecture a échoué, ou une maquette
+  n'a pas pu être lue (lien déchargé). `NON_APPLICABLE` : **limite de lecture
+  prévue** — famille sans occurrence (paramètres d'occurrence non lus),
+  propriété d'un circuit de réserve ou d'espace (`CircuitType` = `Spare` ou
+  `Space`), catégorie inconnue de la version ou absente du document, lien
+  imbriqué (v0). Les deux sont publiées ; seules les `ERREUR` font un écart au
+  contrôle 99. Dans les deux cas la cellule concernée vaut `NON_LU`.
+- **Equipement_base** — `MEPSystem.BaseEquipment` ; `AUCUN` quand l'API rend
+  null (le système n'a pas d'équipement de base). Une cellule vide n'y apparaît
+  plus.
 - **Code_nom** — segment du nom avant le premier `_`, espace ou `-`.
 - **Code_coherent / Prefixe_coherent** — `OUI` si le code du nom égale
   l'abréviation du type, sans tenir compte de la casse ni des accents ; `NON`
@@ -118,11 +131,16 @@ plus les compteurs des contrôles.
   `CALCULE` pour un champ sans paramètre (formule, compte).
 - **Couleur** — `R G B` et `#RRGGBB` ; couleur invalide (pas de remplacement) :
   cellules vides et `Remplace = NON`.
-- **Systèmes, deux instruments** — `Nb_elements_parametre` est compté **côté
+- **Systèmes, trois comptes** — `Nb_elements_parametre` est compté **côté
   élément** (paramètre natif *Nom du système*, découpé aux virgules : un
-  élément peut appartenir à plusieurs systèmes) ; `Nb_elements_api` **côté
-  système** (`MEPSystem.Elements`). Les deux sont publiés, jamais soustraits :
-  un écart ne prouve rien (R15 fait 3). Les tables 11 à 13 couvrent le domaine
+  élément peut appartenir à plusieurs systèmes). Côté **système**, deux
+  propriétés de l'API, que la recette a montrées distinctes :
+  `Nb_terminaux_api` = `MEPSystem.Elements` (« Terminal elements in the
+  system » : terminaux et équipements seulement) et `Nb_elements_reseau` =
+  `PipingSystem.PipingNetwork` (« Pipes and fittings which are contained in
+  this system ») ou `MechanicalSystem.DuctNetwork` (« The ducts and fittings
+  contained within the system »). Tous sont publiés, jamais soustraits : un
+  écart ne prouve rien (R15 fait 3). Les tables 11 à 13 couvrent le domaine
   tuyauterie et gaine (constante `CATEGORIES_SYSTEME`).
 - **Catégories cibles (40, 41)** — constante `CATEGORIES_CIBLES` : équipements
   mécaniques, de plomberie, électriques ; appareils sanitaires ; luminaires ;
@@ -149,18 +167,32 @@ Par maquette lue :
    système de ce nom dans le document.
 2. **Σ occurrences des familles = occurrences des catégories cibles.** Un écart
    signale des occurrences qui ne sont pas des `FamilyInstance`.
+1 bis. **Côté système : terminaux et réseau lus pour chaque système.** La
+   mesure met la somme côté système à côté de la somme côté élément, sans les
+   comparer : ce sont deux instruments. Écart seulement si un compte est
+   `NON_LU`.
 3. **Chaque filtre appliqué existe dans la table 30.**
-4. **Nombre d'anomalies** (une ligne par maquette, total rappelé).
+4. **Anomalies de nature `ERREUR`** (une ligne par maquette, total rappelé). Les
+   `NON_APPLICABLE` sont comptées dans la mesure, hors écart.
 
 ## 6. Recette dans Revit — à passer avant tout usage
 
 | # | Vérification | Résultat |
 |---|---|---|
-| 8 | `pyRevit ▸ Recharger` : bouton **bleu** dans le panneau `Conformité` (premier bouton du panneau, qui devient visible) | à faire |
-| 9 | Sur une maquette **cloud workshared** : la liste **Annuler** de Revit reste vide, aucun élément emprunté | à faire |
-| 10 | Les 19 fichiers sont produits ; dans Excel FR, accents corrects, colonnes séparées, nombres à virgule reconnus | à faire |
-| 11 | Un lien **déchargé** donne `NON_CHARGE` + une anomalie, sans plantage | à faire |
-| 12 | Contrôles 99 et nombre d'anomalies affichés à l'écran en fin d'exécution | à faire |
+Première recette : Bruno, le 2026-10-07, copie détachée de `thestudy_ME_EX`,
+version `2026-10-07a` — outil fonctionnel, quatre corrections demandées
+(48 anomalies de catégorie, compte côté système limité aux terminaux,
+`Equipement_base` vide pour les 168 systèmes, anomalies prévues mêlées aux
+erreurs). Le détail point par point de cette recette n'est pas reporté ici.
+
+À repasser sur la version `2026-10-07b` :
+
+| # | Vérification | Résultat |
+|---|---|---|
+| R1 | Plus aucune anomalie « element -2000xxx introuvable » ; colonnes `Categories` (30) et `Categorie` (60) renseignées | à faire |
+| R2 | `11_systemes` : `Nb_terminaux_api` et `Nb_elements_reseau` renseignés ; contrôle 1 bis à OK | à faire |
+| R3 | `Equipement_base` : `AUCUN` ou une famille, jamais vide ; vérifier à la main sur deux systèmes (navigateur de systèmes ▸ propriétés) | à faire |
+| R4 | `90_anomalies` : colonne `Nature` ; contrôle 4 n'en compte que les `ERREUR` | à faire |
 
 Lire aussi `90_anomalies.csv` de la première exécution : chaque ligne
 `AttributeError` y désigne une propriété d'API supposée et absente (§7).
@@ -185,8 +217,11 @@ Lire aussi `90_anomalies.csv` de la première exécution : chaque ligne
 - `MEPSystemType` : `Abbreviation`, `SystemClassification`, `LineColor`,
   `LinePatternId`, `LineWeight`, `MaterialId` ; `PipingSystemType.FluidType`,
   `FluidTemperature` (interne en kelvins, converti en °C) ;
-  `MEPSystem.BaseEquipment`, `.Elements` ; `PipingSystem.SystemType`,
+  `MEPSystem.BaseEquipment` (la documentation ne dit pas quand il est null) ;
+  `PipingSystem.PipingNetwork`, `MechanicalSystem.DuctNetwork` (documentés,
+  `ElementSet`, non mesurés) ; `PipingSystem.SystemType`,
   `MechanicalSystem.SystemType` ;
+- `Category.GetCategory(Document, ElementId)` pour les ids de `BuiltInCategory` ;
 - `PipeType.RoutingPreferenceManager` (règles de segments) ;
   `DuctType.Shape`, `FlexDuctType.Shape` ;
 - `ElectricalSystem` : `CircuitType`, `Voltage`, `PolesNumber`, `LoadName`,
