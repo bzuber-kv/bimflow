@@ -6,6 +6,8 @@
 > **Complété le 2026-09-12** : code couleur des icônes (§4, orientation O7) et état
 > réel du panneau `Calage projet` (§3), tous deux déjà appliqués au dépôt mais non
 > écrits ici.
+> **Complété le 2026-10-07** : premier bouton du panneau `Conformite`
+> (`Inventaire systèmes`, §3).
 
 ---
 
@@ -114,10 +116,17 @@ aux familles héritées.
 ### `Conformite.panel`
 **Rôle.** Vérifier une maquette contre le plan qualité : nommage, sous-projets,
 filtres, valeurs de paramètres, cohérence de la fédérée.
+**Installé — 1 bouton** *(2026-10-07, non éprouvé)* : `Inventaire systèmes`
+(**bleu**, lecture seule) — photographie des systèmes MEP, filtres, familles
+d'équipement et paramètres, sans verdict. Premier outil de la série « réseaux
+et systèmes » : il fournit la matière des règles que les audits du panneau
+vérifieront ensuite. Premier bouton du panneau, qui devient donc visible
+(pyRevit n'affiche pas un panneau vide). Doc : `docs/inventaire_systemes.md`.
 **Y va** : B05 (audit de conformité fédérée).
 *Particularité* : seul panneau dont la sortie est **aussi un livrable client
-potentiel**, et pas seulement un outil interne. Bloqué par S1 — sans règles
-écrites, il n'y a rien à auditer.
+potentiel**, et pas seulement un outil interne. Les **audits** restent bloqués
+par S1 — sans règles écrites, il n'y a rien à auditer ; l'inventaire, lui, ne
+juge rien et n'en dépend pas.
 
 ## 4. Le code couleur des icônes — orientation O7
 
