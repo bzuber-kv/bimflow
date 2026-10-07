@@ -255,8 +255,8 @@ def _inventaire_pour_controles():
     base_sys = {u"Domaine": u"TUYAUTERIE", u"Prefixe_nom": u"EF",
                 u"Type_systeme": u"Eau froide", u"Abreviation_type": u"EF",
                 u"Classification": u"DomesticColdWater",
-                u"Prefixe_coherent": u"OUI", u"Equipement_base": u"",
-                u"Nb_elements_api": 3}
+                u"Prefixe_coherent": u"OUI", u"Equipement_base": u"AUCUN",
+                u"Nb_terminaux_api": 2, u"Nb_elements_reseau": 5}
     for i, (nom, n) in enumerate([(u"EF 1", 3), (u"ECA 1", 1)]):
         valeurs = dict(base_sys)
         valeurs.update({u"Id": i, u"Nom": nom, u"Nb_elements_parametre": n})
@@ -282,6 +282,8 @@ def _inventaire_pour_controles():
             u"Coupe_ligne_RVB": u"", u"Coupe_motif_RVB": u"",
             u"Transparence": 0, u"Demi_teinte": False})
     inv.anomalie(src, u"systemes", 3, u"Nom", u"Exception: x")
+    inv.non_applicable(src, u"familles_parametres", u"F2 [1]",
+                       u"Parametres d'occurrence", u"0 occurrence")
     inv.ajouter_modele(src, inv_lib.ROLE_HOTE, src, u"", True, True,
                        inv_lib.LU, [], {
                            u"elements_mep_lus": 4,
@@ -307,9 +309,15 @@ def test_controles_arithmetiques():
     filt = [c for c in produits if c[u"Controle"].startswith(u"Chaque")][0]
     assert filt[u"Statut"] == u"ECART"
     assert u"Fantome" in filt[u"Mesure"]
-    anom = [c for c in produits if c[u"Controle"].startswith(u"Nombre")]
+    reseau = [c for c in produits if c[u"Controle"].startswith(u"Cote")][0]
+    assert reseau[u"Mesure"] == (u"0 systeme(s) NON_LU ; terminaux 4 + reseau "
+                                 u"10 = 14 (cote element : 4, autre "
+                                 u"instrument)")
+    assert reseau[u"Statut"] == u"OK"
+    anom = [c for c in produits if c[u"Controle"].startswith(u"Anomalies")]
     assert len(anom) == 2                      # une par maquette, lien compris
-    assert anom[0][u"Mesure"] == u"1 (toutes maquettes : 1)"
+    assert anom[0][u"Mesure"] == (u"1 ERREUR (toutes maquettes : 1) ; "
+                                  u"1 NON_APPLICABLE, hors ecart")
     assert anom[0][u"Statut"] == u"ECART"
     assert anom[1][u"Statut"] == u"OK"
     # le lien non charge ne recoit que le controle d'anomalies
@@ -371,6 +379,46 @@ def test_echecs_repetitifs_publies_une_fois():
     assert len(inv.tables[u"anomalies"]) == 1
 
 
+def test_nature_des_anomalies():
+    inv = inv_lib.Inventaire()
+    inv.anomalie(u"m", u"t", 1, u"p", u"r")
+    inv.non_applicable(u"m", u"familles_parametres", u"F", u"p", u"0 occ.")
+    inv.lire(u"m", u"elec_circuits", 7, u"Nom_charge",
+             lambda: 1 / 0, inv_lib.NATURE_NON_APPLICABLE)
+    assert [a[u"Nature"] for a in inv.tables[u"anomalies"]] == [
+        u"ERREUR", u"NON_APPLICABLE", u"NON_APPLICABLE"]
+    assert inv.nombre_anomalies(u"m", inv_lib.NATURE_ERREUR) == 1
+    assert inv.nombre_anomalies(nature=inv_lib.NATURE_NON_APPLICABLE) == 2
+    with pytest.raises(ValueError):
+        inv.anomalie(u"m", u"t", 1, u"p", u"r", u"AVIS")
+
+
+def test_non_applicable_seul_ne_fait_pas_ecart():
+    inv = inv_lib.Inventaire()
+    inv.non_applicable(u"m", u"familles_parametres", u"F", u"p", u"0 occ.")
+    inv.ajouter_modele(u"m", inv_lib.ROLE_HOTE, u"m", u"", False, False,
+                       inv_lib.LU, [], {})
+    anom = [c for c in inv_lib.calculer_controles(inv)
+            if c[u"Controle"].startswith(u"Anomalies")][0]
+    assert anom[u"Statut"] == u"OK"
+    assert anom[u"Mesure"] == (u"0 ERREUR (toutes maquettes : 0) ; "
+                               u"1 NON_APPLICABLE, hors ecart")
+
+
+def test_controle_reseau_non_lu():
+    inv = inv_lib.Inventaire()
+    valeurs = dict([(c, u"") for c in inv_lib.colonnes(u"systemes")[1:]])
+    valeurs.update({u"Nb_elements_parametre": 2, u"Nb_terminaux_api": 1,
+                    u"Nb_elements_reseau": u"NON_LU"})
+    inv.ajouter(u"systemes", u"m", valeurs)
+    inv.ajouter_modele(u"m", inv_lib.ROLE_HOTE, u"m", u"", False, False,
+                       inv_lib.LU, [], {u"elements_mep_lus": 2})
+    c = [c for c in inv_lib.calculer_controles(inv)
+         if c[u"Controle"].startswith(u"Cote")][0]
+    assert c[u"Statut"] == u"ECART"
+    assert c[u"Mesure"].startswith(u"1 systeme(s) NON_LU")
+
+
 def test_dix_neuf_fichiers():
     assert len(inv_lib.fichiers_attendus()) == 19
     assert inv_lib.fichiers_attendus()[0] == u"inventaire.json"
@@ -388,8 +436,8 @@ def test_csv_echappement_accents_crlf_virgule():
                  u'dit "oui"', u"ligne 1\nligne 2")
     texte = inv_lib.texte_csv(u"anomalies", inv.tables[u"anomalies"])
     assert texte == (
-        u"Source_modele;Table;Id;Propriete;Raison\r\n"
-        u'Maquette été;"t;1";3,5;"dit ""oui""";"ligne 1\nligne 2"'
+        u"Source_modele;Nature;Table;Id;Propriete;Raison\r\n"
+        u'Maquette été;ERREUR;"t;1";3,5;"dit ""oui""";"ligne 1\nligne 2"'
         u"\r\n")
     assert not texte.startswith(inv_lib.BOM)
 
@@ -451,7 +499,7 @@ def test_json_schema_et_decimale_point(tmp_path):
         brut = f.read()
     assert u"12.5" in brut and u"12,5" not in brut
     doc = json.loads(brut)
-    assert doc[u"schema"] == u"bimflow.inventaire/0.1"
+    assert doc[u"schema"] == u"bimflow.inventaire/0.2"
     attendues = [u"schema", u"outil", u"modeles"] + \
         [cle for cle, _f, _c in inv_lib.TABLES]
     assert list(doc.keys()) == attendues
@@ -484,6 +532,16 @@ def test_bouton_sans_ecriture():
                      "EditFamily", "SynchronizeWithCentral",
                      "CheckoutElements", ".IntegerValue", "#! python3"):
         assert interdit not in source, interdit
+
+
+def test_categories_lues_comme_categories():
+    """Recette du 2026-10-07 : 48 anomalies, parce que les ids de
+    BuiltInCategory (negatifs) passaient par doc.GetElement."""
+    source = _lire(os.path.join(BOUTON, "script.py"))
+    assert u"Category.GetCategory(d, cid)" in source
+    for ligne in source.splitlines():
+        if u"GetCategories()" in ligne or u"CategoryId" in ligne:
+            assert u"nom_par_id" not in ligne, ligne
 
 
 @pytest.mark.parametrize("chemin", [
