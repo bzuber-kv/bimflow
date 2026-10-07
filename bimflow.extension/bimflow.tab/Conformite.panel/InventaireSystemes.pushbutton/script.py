@@ -18,7 +18,7 @@ figure dans 90_anomalies.csv. Detail : docs\\inventaire_systemes.md
 __title__ = "Inventaire\nsystèmes"
 __author__ = "Keovia Solutions inc."
 
-VERSION = u"2026-10-07b"
+VERSION = u"2026-10-07c"
 
 # pyRevit v6.5.5 / IronPython 3.4.2 (IPY342) - pas de f-string, pas de
 # shebang, syntaxe 3.4. Toute la logique qui suit la lecture vit dans
@@ -54,7 +54,7 @@ from Autodesk.Revit.DB import (
     ViewSchedule, WorksetKind,
 )
 from Autodesk.Revit.DB.Electrical import (
-    DistributionSysType, ElectricalSystem,
+    DistributionSysType, ElectricalEquipment, ElectricalSystem,
 )
 from Autodesk.Revit.DB.Mechanical import (
     Duct, DuctType, FlexDuct, FlexDuctType, MechanicalSystem,
@@ -146,11 +146,6 @@ def en_mm(v):
 def en_celsius(v):
     return round(UnitUtils.ConvertFromInternalUnits(
         v, UnitTypeId.Celsius), 2)
-
-
-def en_volts(v):
-    return round(UnitUtils.ConvertFromInternalUnits(
-        v, UnitTypeId.Volts), 1)
 
 
 def couleur_de(c):
@@ -543,10 +538,6 @@ def lire_types_canalisation(ctx):
 # 3. Electricite (tables 20 a 22)
 # ---------------------------------------------------------------------------
 
-# Valeurs de CircuitType pour lesquelles une propriete peut etre sans objet.
-CIRCUITS_RESERVE = (u"Spare", u"Space")
-
-
 def lire_electricite(ctx):
     d = ctx.d
 
@@ -559,13 +550,15 @@ def lire_electricite(ctx):
         i = idv(eid)
         type_circuit = ctx.lire(T, i, u"Type_circuit",
                                 lambda: u"{0}".format(c.CircuitType))
-        # Circuit de reserve ou espace : charge, tension, elements peuvent
-        # etre sans objet. Leur echec est une limite prevue, pas une erreur.
-        nature = (L.NATURE_NON_APPLICABLE if type_circuit in CIRCUITS_RESERVE
-                  else L.NATURE_ERREUR)
+        type_systeme = ctx.lire(T, i, u"Type_systeme_elec",
+                                lambda: u"{0}".format(c.SystemType))
 
+        # Circuit de reserve ou d'espace, tension d'un circuit qui n'est pas
+        # de puissance : l'echec est une limite prevue, pas une erreur.
         def lire_c(propriete, fonction):
-            return ctx.lire(T, i, propriete, fonction, nature)
+            return ctx.lire(T, i, propriete, fonction,
+                            L.nature_propriete_circuit(
+                                propriete, type_circuit, type_systeme))
 
         base = lire_c(u"Tableau_id", lambda: c.BaseEquipment)
         if base is not None and not non_lu(base):
@@ -575,29 +568,42 @@ def lire_electricite(ctx):
             u"Id": i,
             u"Tableau": lire_c(u"Tableau", lambda: c.PanelName),
             u"Numero": lire_c(u"Numero", lambda: c.CircuitNumber),
-            u"Type_systeme_elec": ctx.lire(
-                T, i, u"Type_systeme_elec",
-                lambda: u"{0}".format(c.SystemType)),
+            u"Type_systeme_elec": type_systeme,
             u"Type_circuit": type_circuit,
             u"Nom_charge": lire_c(u"Nom_charge", lambda: c.LoadName),
-            u"Tension_V": lire_c(u"Tension_V", lambda: en_volts(c.Voltage)),
+            # Unite non documentee : supposee interne (hypothese).
+            u"Tension_V": lire_c(u"Tension_V",
+                                 lambda: L.volts(c.Voltage, True)),
             u"Nb_poles": lire_c(u"Nb_poles", lambda: c.PolesNumber),
             u"Nb_elements": lire_c(u"Nb_elements", lambda: c.Elements.Size),
         })
 
-    # Tableaux (21) : les occurrences d'equipement electrique.
+    # Tableaux (21) : les FamilyInstance dont le MEPModel est un
+    # ElectricalEquipment ET qui portent un nom de tableau. Les autres
+    # equipements electriques (sans parametre de tableau) ne sont pas des
+    # tableaux : comptes, et dits en une anomalie NON_APPLICABLE.
     T = u"elec_tableaux"
     tableaux_par_distribution = {}
+    hors_tableaux = 0
     bic = categorie_native(u"OST_ElectricalEquipment")
     for eid in ids_categorie(d, bic):
         tic()
         el = d.GetElement(eid)
         i = idv(eid)
+        equipement = ctx.lire(T, i, u"MEPModel", lambda: equipement_de(el))
+        if non_lu(equipement):
+            continue
+        nom = ctx.lire(T, i, u"Nom_tableau", lambda: texte_si_present(
+            el, "RBS_ELEC_PANEL_NAME"))
+        if non_lu(nom):
+            continue
+        if not L.est_tableau(equipement is not None, nom):
+            hors_tableaux += 1
+            continue
         dist = ctx.lire(T, i, u"Systeme_distribution",
-                        lambda: id_natif(
-                            el, "RBS_FAMILY_CONTENT_DISTRIBUTION_SYSTEM"))
-        if valide(dist):
-            cle = idv(dist)
+                        lambda: equipement.DistributionSystem)
+        if dist is not None and not non_lu(dist):
+            cle = idv(dist.Id)
             tableaux_par_distribution[cle] = \
                 tableaux_par_distribution.get(cle, 0) + 1
         fam_typ = ctx.lire(T, i, u"Famille_Type",
@@ -606,21 +612,28 @@ def lire_electricite(ctx):
             fam_typ = (L.NON_LU, L.NON_LU)
         inv.ajouter(T, ctx.src, {
             u"Id": i,
-            u"Nom_tableau": ctx.lire(
-                T, i, u"Nom_tableau",
-                lambda: texte_natif(el, "RBS_ELEC_PANEL_NAME")),
+            u"Nom_tableau": nom,
             u"Famille": fam_typ[0], u"Type": fam_typ[1],
-            u"Systeme_distribution": L.NON_LU if non_lu(dist) else
-            ctx.lire(T, i, u"Systeme_distribution",
-                     lambda: nom_par_id(d, dist)),
+            # Pas de systeme de distribution : champ vide, declare (spec §7).
+            u"Systeme_distribution": L.NON_LU if non_lu(dist) else (
+                u"" if dist is None else ctx.lire(
+                    T, i, u"Systeme_distribution",
+                    lambda: nom_element(dist))),
             u"Alimente_par": ctx.lire(
                 T, i, u"Alimente_par",
-                lambda: texte_natif(el, "RBS_ELEC_PANEL_SUPPLY_FROM_PARAM")),
+                lambda: texte_natif(el, "RBS_ELEC_PANEL_SUPPLY_FROM_PARAM"),
+                L.NATURE_NON_APPLICABLE),
             u"Nb_circuits": circuits_par_tableau.get(i, 0),
             u"Niveau": ctx.lire(T, i, u"Niveau", lambda: ctx.niveau(el)),
             u"Sous_projet": ctx.lire(T, i, u"Sous_projet",
                                      lambda: ctx.sous_projet(el)),
         })
+    if hors_tableaux:
+        inv.non_applicable(
+            ctx.src, T, u"", u"Tableau",
+            u"{0} equipement(s) electrique(s) sans nom de tableau ou sans "
+            u"ElectricalEquipment : hors table 21".format(hors_tableaux))
+    ctx.comptes[u"equipements_electriques_hors_tableaux"] = hors_tableaux
 
     # Systemes de distribution (20).
     T = u"elec_distribution"
@@ -646,10 +659,27 @@ def lire_electricite(ctx):
         })
 
 
+def equipement_de(el):
+    """ElectricalEquipment de l'occurrence, ou None."""
+    if not isinstance(el, FamilyInstance):
+        return None
+    modele = el.MEPModel
+    return modele if isinstance(modele, ElectricalEquipment) else None
+
+
+def texte_si_present(el, nom_bip):
+    """Texte du parametre natif, ou None s'il est absent de l'element."""
+    p = el.get_Parameter(getattr(BuiltInParameter, nom_bip))
+    if p is None:
+        return None
+    return p.AsString() or u""
+
+
 def tension(type_tension):
+    """VoltageType.ActualValue est DEJA en volts (doc API 2026)."""
     if type_tension is None:
         return u""
-    return en_volts(type_tension.ActualValue)
+    return L.volts(type_tension.ActualValue, False)
 
 
 # ---------------------------------------------------------------------------

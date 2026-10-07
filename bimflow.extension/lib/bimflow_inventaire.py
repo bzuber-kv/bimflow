@@ -595,6 +595,54 @@ def compter_applications(applications):
 
 
 # ---------------------------------------------------------------------------
+# 5 bis. Electricite : tensions, tableaux, circuits
+# ---------------------------------------------------------------------------
+
+# Unite interne de Revit pour un potentiel electrique : kg.ft2/(s3.A).
+# 1 V = 1 kg.m2/(s3.A) = 1 / 0,3048^2 = 10,7639... unites internes.
+VOLT_EN_UNITES_INTERNES = 1.0 / (0.3048 * 0.3048)
+
+
+def volts(valeur, en_unites_internes):
+    """Tension en volts, arrondie a 0,1 V.
+
+    en_unites_internes : la valeur sort-elle en unites internes ? NON pour
+    VoltageType.ActualValue (doc API 2026 : "the unit is volt") ; c'est
+    l'avoir converti qui donnait 21,4 pour un "230V AC" (recette McGill,
+    2026-10-07). OUI suppose pour ElectricalSystem.Voltage, dont la doc ne
+    dit pas l'unite."""
+    v = float(valeur)
+    if en_unites_internes:
+        v = v / VOLT_EN_UNITES_INTERNES
+    return round(v, 1)
+
+
+CIRCUITS_RESERVE = (u"Spare", u"Space")
+CIRCUIT_DE_PUISSANCE = u"PowerCircuit"
+
+
+def nature_propriete_circuit(propriete, type_circuit, type_systeme):
+    """Nature d'un echec de lecture sur un circuit. NON_APPLICABLE quand la
+    propriete peut etre sans objet : circuit de reserve ou d'espace, ou
+    tension d'un circuit qui n'est pas de puissance (la doc API de
+    ElectricalSystem.Voltage annonce une exception dans ce cas)."""
+    if type_circuit in CIRCUITS_RESERVE:
+        return NATURE_NON_APPLICABLE
+    if propriete == u"Tension_V" and type_systeme != CIRCUIT_DE_PUISSANCE:
+        return NATURE_NON_APPLICABLE
+    return NATURE_ERREUR
+
+
+def est_tableau(est_equipement_electrique, nom_tableau):
+    """Une occurrence est un tableau si son MEPModel est un
+    ElectricalEquipment ET qu'elle porte un nom de tableau. nom_tableau :
+    None si le parametre natif est absent, sinon son texte."""
+    if not est_equipement_electrique:
+        return False
+    return bool(nom_tableau and nom_tableau.strip())
+
+
+# ---------------------------------------------------------------------------
 # 6. Repartition des elements MEP par systeme (cote element)
 # ---------------------------------------------------------------------------
 

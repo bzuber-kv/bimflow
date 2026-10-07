@@ -419,6 +419,50 @@ def test_controle_reseau_non_lu():
     assert c[u"Mesure"].startswith(u"1 systeme(s) NON_LU")
 
 
+# ---------------------------------------------------------------------------
+# Electricite : tensions, tableaux, nature des echecs sur un circuit
+# ---------------------------------------------------------------------------
+
+def test_volt_en_unites_internes():
+    """1 V = 1 kg.m2/(s3.A) = 10,7639 kg.ft2/(s3.A), unite interne Revit."""
+    assert abs(inv_lib.VOLT_EN_UNITES_INTERNES - 10.763910416709722) < 1e-9
+    assert inv_lib.volts(230 * inv_lib.VOLT_EN_UNITES_INTERNES, True) == 230.0
+
+
+def test_tension_deja_en_volts_non_convertie():
+    """Recette McGill 2026-10-07 : '230V AC' sortait 21,4. ActualValue est
+    deja en volts ; le convertir comme une valeur interne divise par 10,76."""
+    assert inv_lib.volts(230.0, False) == 230.0
+    assert inv_lib.volts(230.0, True) == 21.4          # la signature du defaut
+    assert inv_lib.volts(120.04, False) == 120.0
+
+
+@pytest.mark.parametrize("propriete, type_circuit, type_systeme, attendu", [
+    (u"Nom_charge", u"Spare", u"PowerCircuit", u"NON_APPLICABLE"),
+    (u"Nb_elements", u"Space", u"PowerCircuit", u"NON_APPLICABLE"),
+    (u"Tension_V", u"Circuit", u"Data", u"NON_APPLICABLE"),
+    (u"Tension_V", u"Circuit", u"FireAlarm", u"NON_APPLICABLE"),
+    (u"Tension_V", u"Circuit", u"PowerCircuit", u"ERREUR"),
+    (u"Nom_charge", u"Circuit", u"Data", u"ERREUR"),
+    (u"Tension_V", u"NON_LU", u"NON_LU", u"NON_APPLICABLE"),
+])
+def test_nature_propriete_circuit(propriete, type_circuit, type_systeme,
+                                  attendu):
+    assert inv_lib.nature_propriete_circuit(
+        propriete, type_circuit, type_systeme) == attendu
+
+
+@pytest.mark.parametrize("equipement, nom, attendu", [
+    (True, u"TD-01", True),
+    (True, u"   ", False),          # nom de tableau vide
+    (True, u"", False),
+    (True, None, False),            # parametre absent
+    (False, u"TD-01", False),       # pas un ElectricalEquipment
+])
+def test_est_tableau(equipement, nom, attendu):
+    assert inv_lib.est_tableau(equipement, nom) is attendu
+
+
 def test_dix_neuf_fichiers():
     assert len(inv_lib.fichiers_attendus()) == 19
     assert inv_lib.fichiers_attendus()[0] == u"inventaire.json"

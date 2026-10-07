@@ -76,7 +76,7 @@ en cas d'homonymie).
 | `13_elements_sans_systeme.csv` | élément MEP sans nom de système |
 | `14_types_canalisation_gaine.csv` | type de canalisation, de gaine, ou souple |
 | `20_elec_distribution.csv` | système de distribution |
-| `21_elec_tableaux.csv` | occurrence d'équipement électrique |
+| `21_elec_tableaux.csv` | tableau : occurrence dont le `MEPModel` est un `ElectricalEquipment` portant un nom de tableau (les autres équipements électriques sont comptés dans une anomalie `NON_APPLICABLE`) |
 | `22_elec_circuits.csv` | circuit |
 | `30_filtres.csv` | filtre (à règles ou de sélection) |
 | `31_filtres_regles.csv` | règle élémentaire, avec son chemin dans l'arbre |
@@ -109,7 +109,8 @@ plus les compteurs des contrôles.
   n'a pas pu être lue (lien déchargé). `NON_APPLICABLE` : **limite de lecture
   prévue** — famille sans occurrence (paramètres d'occurrence non lus),
   propriété d'un circuit de réserve ou d'espace (`CircuitType` = `Spare` ou
-  `Space`), catégorie inconnue de la version ou absente du document, lien
+  `Space`), tension d'un circuit autre que de puissance, équipement électrique
+  qui n'est pas un tableau, « Alimenté par » absent d'un tableau, catégorie inconnue de la version ou absente du document, lien
   imbriqué (v0). Les deux sont publiées ; seules les `ERREUR` font un écart au
   contrôle 99. Dans les deux cas la cellule concernée vaut `NON_LU`.
 - **Equipement_base** — `MEPSystem.BaseEquipment` ; `AUCUN` quand l'API rend
@@ -155,7 +156,14 @@ plus les compteurs des contrôles.
   `FilterInverseRule`. Valeurs numériques **brutes**, en unités internes
   (`Valeur_unites_internes = OUI`). Paramètre identifié par son id et, s'il est
   partagé, son **GUID** — l'identité d'un paramètre partagé (R08).
-- **Unités** — SI : mm, °C, V (conversion par `UnitUtils` dans le bouton).
+- **Unités** — SI : mm, °C (conversion par `UnitUtils` dans le bouton), V.
+  **Tensions** : `VoltageType.ActualValue` est **déjà en volts** (doc API 2026 :
+  « the unit is volt ») — la convertir donnait 21,4 pour « 230V AC » (recette
+  McGill, 2026-10-07 ; corrigé en `2026-10-07c`). `ElectricalSystem.Voltage`
+  (tension d'un circuit) : unité non documentée, **supposée interne**
+  (1 V = 10,7639 unités internes) — à vérifier sur un circuit connu.
+  La tension d'un circuit qui n'est pas de puissance est `NON_APPLICABLE`
+  (la doc annonce une exception).
 
 ## 5. Contrôles (99)
 
@@ -193,6 +201,8 @@ erreurs). Le détail point par point de cette recette n'est pas reporté ici.
 | R2 | `11_systemes` : `Nb_terminaux_api` et `Nb_elements_reseau` renseignés ; contrôle 1 bis à OK | à faire |
 | R3 | `Equipement_base` : `AUCUN` ou une famille, jamais vide ; vérifier à la main sur deux systèmes (navigateur de systèmes ▸ propriétés) | à faire |
 | R4 | `90_anomalies` : colonne `Nature` ; contrôle 4 n'en compte que les `ERREUR` | à faire |
+| R5 | `2026-10-07c` : « 230V AC » sort 230 en `20_elec_distribution` ; `Tension_V` d'un circuit connu juste en `22` | à faire |
+| R6 | `2026-10-07c` : sur `1981McGill_E_EL_Global`, plus d'`ERREUR` de nom de tableau ou de système de distribution (705 en `b`) | à faire |
 
 Lire aussi `90_anomalies.csv` de la première exécution : chaque ligne
 `AttributeError` y désigne une propriété d'API supposée et absente (§7).
