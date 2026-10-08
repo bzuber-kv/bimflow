@@ -3,6 +3,10 @@ CONFORMITE — famille A (le fichier)
 Role : verifier une maquette contre le plan qualite. Nommage, sous-projets,
 filtres, valeurs de parametres, coherence de la federee.
 
+Installe : InventaireSystemes (bleu, lecture seule, 2026-10-07, non
+eprouve) - photographie sans verdict ; ne depend pas de S1.
+Doc : docs\inventaire_systemes.md
+
 Y va : B05 audit de conformite federee
 
 Particularite : seul panneau dont la sortie est AUSSI un livrable client
