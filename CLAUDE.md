@@ -3,6 +3,12 @@
 Dépôt d'outils pyRevit de Keovia Solutions. Ces règles valent pour toute session, quel que
 soit le brief. Si un brief les contredit, signale-le avant d'agir.
 
+## Principe fondateur — standard / instance / retour
+Tout ce que bimflow produit est le STANDARD Keovia (générique). Un projet l'instancie
+(sous-ensemble ou version ajustée), et l'écart est documenté côté affaire. Un outil bimflow
+lit ses règles dans un fichier, il ne les contient jamais en dur. Une valeur propre à une
+affaire n'entre pas dans le standard sans recadrage.
+
 ## Git
 - Ne jamais committer sur `dev` ni sur `main`. Toujours : branche `feature/<sujet>` depuis
   `origin/dev` à jour, puis PR vers `dev`. La fusion vers `main` est décidée par Bruno.
