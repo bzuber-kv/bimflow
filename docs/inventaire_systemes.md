@@ -10,8 +10,7 @@
 > `thestudy_ME_EX` — outil fonctionnel.** Quatre corrections en ont résulté
 > (version `2026-10-07b`, schéma `0.2`) : catégories lues comme catégories,
 > réseau des systèmes, equipement de base dit `AUCUN`, nature des anomalies.
-> Recette des corrections consignée le 2026-10-08 (§6) : R1 à R6 faites, R3 en
-> partie ; R7 et R8 restent à faire.
+> Recette des corrections consignée le 2026-10-08 (§6) : **R1 à R8 faites**.
 
 ---
 
@@ -209,12 +208,12 @@ prévues mêlées aux erreurs). Source :
 |---|---|---|
 | R1 | Plus aucune anomalie « element -2000xxx introuvable » ; colonnes `Categories` (30) et `Categorie` (60) renseignées | **fait** le 2026-10-07, version `b`, sur la fédérée `thestudy_G_CO` (5 maquettes lues, dont `ME_EX`) — ANALYSE §1, source (b) |
 | R2 | `11_systemes` : `Nb_terminaux_api` et `Nb_elements_reseau` renseignés ; contrôle 1 bis à OK | **fait** le 2026-10-07, version `b`, sur la fédérée `thestudy_G_CO` (5 maquettes lues, dont `ME_EX`) — ANALYSE §1, source (b) |
-| R3 | `Equipement_base` : `AUCUN` ou une famille, jamais vide ; vérifier à la main sur deux systèmes (navigateur de systèmes ▸ propriétés) | **fait en partie** le 2026-10-07 : `AUCUN` sur tous les systèmes, jamais vide ; **vérification à la main d'un système encore à faire** (ANALYSE §1, « reste à corriger » 2) |
+| R3 | `Equipement_base` : `AUCUN` ou une famille, jamais vide ; vérifier à la main sur deux systèmes (navigateur de systèmes ▸ propriétés) | **fait** le 2026-10-08 sur les maquettes McGill : `Equipement_base` renseigné sur des systèmes réels, lecture vérifiée (déclaré Bruno, 2026-10-08). Avant : le 2026-10-07 sur The Study, `AUCUN` sur tous les systèmes, jamais vide (ANALYSE §1) |
 | R4 | `90_anomalies` : colonne `Nature` ; contrôle 4 n'en compte que les `ERREUR` | **fait** le 2026-10-07, version `b`, sur la fédérée `thestudy_G_CO` (5 maquettes lues, dont `ME_EX`) — ANALYSE §1, source (b) |
 | R5 | `2026-10-07c` : « 230V AC » sort 230 en `20_elec_distribution` ; `Tension_V` d'un circuit connu juste en `22` | **fait** le 2026-10-07 sur `1981McGill_CO_FED_Global` : tensions justes (déclaré Bruno, 2026-10-08) |
 | R6 | `2026-10-07c` : sur `1981McGill_E_EL_Global`, plus d'`ERREUR` de nom de tableau ou de système de distribution (705 en `b`) | **fait** le 2026-10-07 sur `1981McGill_CO_FED_Global` : 0 `ERREUR` dans `E_EL` (déclaré Bruno, 2026-10-08) |
-| R7 | `2026-10-07d` : sur `1981McGill_M_CH_Global`, `Nb_poles` des circuits Data / Communication en `NON_APPLICABLE` (9 `ERREUR` en `c`) | à faire |
-| R8 | `2026-10-07d` : un lien lu avec un sous-projet fermé donne l'anomalie « inventaire partiel » et le contrôle prérequis en écart | à faire |
+| R7 | `2026-10-07d` : sur `1981McGill_M_CH_Global`, `Nb_poles` des circuits Data / Communication en `NON_APPLICABLE` (9 `ERREUR` en `c`) | **fait** le 2026-10-08 sur `1981McGill_CO_FED_Global`, version `2026-10-07d` : 0 `ERREUR` dans `M_CH` (déclaré Bruno, 2026-10-08) |
+| R8 | `2026-10-07d` : un lien lu avec un sous-projet fermé donne l'anomalie « inventaire partiel » et le contrôle prérequis en écart | **fait** le 2026-10-08 sur `1981McGill_CO_FED_Global`, version `2026-10-07d` : ligne « inventaire partiel » et contrôle Prérequis en `ECART` sur les 6 liens (déclaré Bruno, 2026-10-08) |
 
 Lire aussi `90_anomalies.csv` de la première exécution : chaque ligne
 `AttributeError` y désigne une propriété d'API supposée et absente (§7).
