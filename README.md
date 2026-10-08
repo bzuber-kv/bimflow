@@ -151,3 +151,5 @@ paramètres partagés*. Détail et liaisons : [docs/parametres.md](docs/parametr
 
 Conventions : `WORK\_CONTEXT\03_REGLES_DEV.md`. Dérogations en vigueur pour ce
 repo : voir `docs/recalage_global.md` §9 (contraintes IronPython 3.4 / IPY342).
+Règles permanentes des sessions Claude Code, et dérogation « type méthode » (pas de
+`pyproject.toml`, pas de packaging) : voir [CLAUDE.md](CLAUDE.md).
