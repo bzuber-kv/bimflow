@@ -18,7 +18,7 @@ figure dans 90_anomalies.csv. Detail : docs\\inventaire_systemes.md
 __title__ = "Inventaire\nsystèmes"
 __author__ = "Keovia Solutions inc."
 
-VERSION = u"2026-10-07c"
+VERSION = u"2026-10-07d"
 
 # pyRevit v6.5.5 / IronPython 3.4.2 (IPY342) - pas de f-string, pas de
 # shebang, syntaxe 3.4. Toute la logique qui suit la lecture vit dans

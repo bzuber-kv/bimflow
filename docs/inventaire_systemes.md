@@ -109,7 +109,9 @@ plus les compteurs des contrôles.
   n'a pas pu être lue (lien déchargé). `NON_APPLICABLE` : **limite de lecture
   prévue** — famille sans occurrence (paramètres d'occurrence non lus),
   propriété d'un circuit de réserve ou d'espace (`CircuitType` = `Spare` ou
-  `Space`), tension d'un circuit autre que de puissance, équipement électrique
+  `Space`), tension et nombre de pôles d'un circuit autre que de puissance
+  (`SystemType` ≠ `PowerCircuit`), lien lu avec des sous-projets fermés
+  (« inventaire partiel »), équipement électrique
   qui n'est pas un tableau, « Alimenté par » absent d'un tableau, catégorie inconnue de la version ou absente du document, lien
   imbriqué (v0). Les deux sont publiées ; seules les `ERREUR` font un écart au
   contrôle 99. Dans les deux cas la cellule concernée vaut `NON_LU`.
@@ -162,13 +164,19 @@ plus les compteurs des contrôles.
   McGill, 2026-10-07 ; corrigé en `2026-10-07c`). `ElectricalSystem.Voltage`
   (tension d'un circuit) : unité non documentée, **supposée interne**
   (1 V = 10,7639 unités internes) — à vérifier sur un circuit connu.
-  La tension d'un circuit qui n'est pas de puissance est `NON_APPLICABLE`
-  (la doc annonce une exception).
+  La tension et le nombre de pôles d'un circuit qui n'est pas de puissance
+  sont `NON_APPLICABLE` (la doc annonce une exception pour la tension ;
+  `Nb_poles` : 9 `ERREUR` sur des circuits Data / Communication de
+  `1981McGill_M_CH_Global`, corrigé en `2026-10-07d`).
 
 ## 5. Contrôles (99)
 
 Par maquette lue :
 
+0. **Prérequis (liens seulement) : aucun sous-projet fermé dans le lien.**
+   Écart s'il y en a ; la mesure les nomme, et une anomalie `NON_APPLICABLE`
+   « inventaire partiel : N sous-projets fermes dans <lien> » part dans
+   `90_anomalies.csv`. Pour l'hôte, l'alerte est à l'écran avant la lecture.
 1. **Éléments par système (côté élément) + éléments sans système ≥ éléments
    MEP lus.** La mesure détaille l'écart : affectations supplémentaires des
    éléments multi-systèmes, éléments au nom de système `NON_LU`, noms lus sans
@@ -203,6 +211,8 @@ erreurs). Le détail point par point de cette recette n'est pas reporté ici.
 | R4 | `90_anomalies` : colonne `Nature` ; contrôle 4 n'en compte que les `ERREUR` | à faire |
 | R5 | `2026-10-07c` : « 230V AC » sort 230 en `20_elec_distribution` ; `Tension_V` d'un circuit connu juste en `22` | à faire |
 | R6 | `2026-10-07c` : sur `1981McGill_E_EL_Global`, plus d'`ERREUR` de nom de tableau ou de système de distribution (705 en `b`) | à faire |
+| R7 | `2026-10-07d` : sur `1981McGill_M_CH_Global`, `Nb_poles` des circuits Data / Communication en `NON_APPLICABLE` (9 `ERREUR` en `c`) | à faire |
+| R8 | `2026-10-07d` : un lien lu avec un sous-projet fermé donne l'anomalie « inventaire partiel » et le contrôle prérequis en écart | à faire |
 
 Lire aussi `90_anomalies.csv` de la première exécution : chaque ligne
 `AttributeError` y désigne une propriété d'API supposée et absente (§7).

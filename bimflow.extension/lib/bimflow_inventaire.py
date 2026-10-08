@@ -619,16 +619,20 @@ def volts(valeur, en_unites_internes):
 
 CIRCUITS_RESERVE = (u"Spare", u"Space")
 CIRCUIT_DE_PUISSANCE = u"PowerCircuit"
+# Proprietes sans objet hors circuit de puissance : 9 ERREUR de Nb_poles sur
+# des circuits Data / Communication de 1981McGill_M_CH_Global (2026-10-07).
+PROPRIETES_DE_PUISSANCE = (u"Tension_V", u"Nb_poles")
 
 
 def nature_propriete_circuit(propriete, type_circuit, type_systeme):
     """Nature d'un echec de lecture sur un circuit. NON_APPLICABLE quand la
     propriete peut etre sans objet : circuit de reserve ou d'espace, ou
-    tension d'un circuit qui n'est pas de puissance (la doc API de
-    ElectricalSystem.Voltage annonce une exception dans ce cas)."""
+    tension et nombre de poles d'un circuit qui n'est pas de puissance (la
+    doc API de ElectricalSystem.Voltage annonce une exception dans ce cas)."""
     if type_circuit in CIRCUITS_RESERVE:
         return NATURE_NON_APPLICABLE
-    if propriete == u"Tension_V" and type_systeme != CIRCUIT_DE_PUISSANCE:
+    if propriete in PROPRIETES_DE_PUISSANCE and \
+            type_systeme != CIRCUIT_DE_PUISSANCE:
         return NATURE_NON_APPLICABLE
     return NATURE_ERREUR
 
@@ -824,6 +828,32 @@ def _statut(ok):
     return u"OK" if ok else u"ECART"
 
 
+def controle_sous_projets_fermes(inv, modele):
+    """Controle prerequis d'un lien lu : ses sous-projets fermes. Chacun prive
+    l'inventaire de ses elements ; un lien qui en a recoit aussi une anomalie
+    NON_APPLICABLE (inventaire partiel). Une liste illisible (NON_LU) a deja
+    son anomalie ERREUR : elle fait ecart, sans anomalie de plus."""
+    src = modele[u"source_modele"]
+    fermes = modele[u"sous_projets_fermes"]
+    if NON_LU in fermes:
+        mesure, ok = NON_LU, False
+    else:
+        mesure, ok = u"{0} sous-projet(s) ferme(s)".format(len(fermes)), \
+            not fermes
+        if fermes:
+            mesure += u" : " + u", ".join(fermes)
+            inv.non_applicable(
+                src, u"modeles", u"", u"sous_projets_fermes",
+                u"inventaire partiel : {0} sous-projets fermes dans {1}".format(
+                    len(fermes), src))
+    return inv.ajouter(u"controles", src, {
+        u"Controle": u"Prerequis : aucun sous-projet ferme dans le lien",
+        u"Attendu": u"0",
+        u"Mesure": mesure,
+        u"Statut": _statut(ok),
+    })
+
+
 def calculer_controles(inv):
     """Ajoute les lignes de controle de chaque maquette lue, puis les rend.
 
@@ -837,6 +867,11 @@ def calculer_controles(inv):
             continue
         src = modele[u"source_modele"]
         comptes = modele[u"comptes"]
+
+        # 0. Prerequis d'un lien : aucun sous-projet ferme. Sinon l'inventaire
+        # du lien est partiel : une anomalie NON_APPLICABLE le dit.
+        if modele[u"role"] == ROLE_LIEN:
+            produits.append(controle_sous_projets_fermes(inv, modele))
 
         # 1. Systemes : somme par systeme + sans systeme >= elements lus.
         somme = 0

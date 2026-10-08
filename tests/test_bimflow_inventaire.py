@@ -405,6 +405,56 @@ def test_non_applicable_seul_ne_fait_pas_ecart():
                                u"1 NON_APPLICABLE, hors ecart")
 
 
+def _prerequis(produits, src):
+    return [c for c in produits if c[u"Source_modele"] == src
+            and c[u"Controle"].startswith(u"Prerequis")]
+
+
+def test_lien_sous_projets_fermes_inventaire_partiel():
+    inv = inv_lib.Inventaire()
+    inv.ajouter_modele(u"h", inv_lib.ROLE_HOTE, u"h", u"", False, True,
+                       inv_lib.LU, [u"Z_Hote"], {})
+    inv.ajouter_modele(u"l", inv_lib.ROLE_LIEN, u"l", u"", False, True,
+                       inv_lib.LU, [u"A_Murs", u"M_CH"], {})
+    produits = inv_lib.calculer_controles(inv)
+    na = [a for a in inv.tables[u"anomalies"]
+          if a[u"Propriete"] == u"sous_projets_fermes"]
+    assert len(na) == 1                                 # le lien seul
+    assert na[0][u"Source_modele"] == u"l"
+    assert na[0][u"Nature"] == u"NON_APPLICABLE"
+    assert na[0][u"Raison"] == \
+        u"inventaire partiel : 2 sous-projets fermes dans l"
+    pre = _prerequis(produits, u"l")
+    assert len(pre) == 1
+    assert pre[0][u"Mesure"] == u"2 sous-projet(s) ferme(s) : A_Murs, M_CH"
+    assert pre[0][u"Statut"] == u"ECART"
+    assert _prerequis(produits, u"h") == []             # hote : alerte a l'ecran
+    # l'anomalie est comptee hors ecart dans le controle 4
+    anom = [c for c in produits if c[u"Source_modele"] == u"l"
+            and c[u"Controle"].startswith(u"Anomalies")][0]
+    assert anom[u"Statut"] == u"OK"
+    assert u"1 NON_APPLICABLE" in anom[u"Mesure"]
+
+
+def test_lien_sans_sous_projet_ferme():
+    inv = inv_lib.Inventaire()
+    inv.ajouter_modele(u"l", inv_lib.ROLE_LIEN, u"l", u"", False, True,
+                       inv_lib.LU, [], {})
+    pre = _prerequis(inv_lib.calculer_controles(inv), u"l")
+    assert (pre[0][u"Mesure"], pre[0][u"Statut"]) == \
+        (u"0 sous-projet(s) ferme(s)", u"OK")
+    assert inv.tables[u"anomalies"] == []
+
+
+def test_lien_sous_projets_fermes_illisibles():
+    inv = inv_lib.Inventaire()
+    inv.ajouter_modele(u"l", inv_lib.ROLE_LIEN, u"l", u"", False, True,
+                       inv_lib.LU, [inv_lib.NON_LU], {})
+    pre = _prerequis(inv_lib.calculer_controles(inv), u"l")
+    assert (pre[0][u"Mesure"], pre[0][u"Statut"]) == (u"NON_LU", u"ECART")
+    assert inv.tables[u"anomalies"] == []   # l'ERREUR de lecture existe deja
+
+
 def test_controle_reseau_non_lu():
     inv = inv_lib.Inventaire()
     valeurs = dict([(c, u"") for c in inv_lib.colonnes(u"systemes")[1:]])
@@ -445,6 +495,11 @@ def test_tension_deja_en_volts_non_convertie():
     (u"Tension_V", u"Circuit", u"PowerCircuit", u"ERREUR"),
     (u"Nom_charge", u"Circuit", u"Data", u"ERREUR"),
     (u"Tension_V", u"NON_LU", u"NON_LU", u"NON_APPLICABLE"),
+    # Recette McGill M_CH : Nb_poles d'un circuit Data / Communication
+    (u"Nb_poles", u"Circuit", u"Data", u"NON_APPLICABLE"),
+    (u"Nb_poles", u"Circuit", u"Communication", u"NON_APPLICABLE"),
+    (u"Nb_poles", u"Circuit", u"PowerCircuit", u"ERREUR"),
+    (u"Nb_poles", u"NON_LU", u"NON_LU", u"NON_APPLICABLE"),
 ])
 def test_nature_propriete_circuit(propriete, type_circuit, type_systeme,
                                   attendu):
