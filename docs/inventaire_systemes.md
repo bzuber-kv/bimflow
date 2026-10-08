@@ -10,7 +10,8 @@
 > `thestudy_ME_EX` — outil fonctionnel.** Quatre corrections en ont résulté
 > (version `2026-10-07b`, schéma `0.2`) : catégories lues comme catégories,
 > réseau des systèmes, equipement de base dit `AUCUN`, nature des anomalies.
-> Ces corrections ne sont **pas encore repassées** sous Revit (§6).
+> Recette des corrections consignée le 2026-10-08 (§6) : R1 à R6 faites, R3 en
+> partie ; R7 et R8 restent à faire.
 
 ---
 
@@ -191,26 +192,27 @@ Par maquette lue :
 4. **Anomalies de nature `ERREUR`** (une ligne par maquette, total rappelé). Les
    `NON_APPLICABLE` sont comptées dans la mesure, hors écart.
 
-## 6. Recette dans Revit — à passer avant tout usage
+## 6. Recette dans Revit
+
+**Première recette** : Bruno, le 2026-10-07, copie détachée de `thestudy_ME_EX`,
+version `2026-10-07a`, hôte seul — **faite** : bouton bleu au panneau
+`Conformité`, 19 fichiers produits, accents lisibles, lien déchargé →
+`NON_CHARGE` + anomalie sans plantage, contrôles affichés. Outil fonctionnel ;
+quatre corrections demandées (48 anomalies de catégorie, compte côté système
+limité aux terminaux, `Equipement_base` vide pour les 168 systèmes, anomalies
+prévues mêlées aux erreurs). Source :
+`WORK\dev\bimflow\actions\2026-10-07_ANALYSE_inventaire_thestudy_ME_EX_v0.md` §1.
+
+**Recette des corrections** — consignée le 2026-10-08 :
 
 | # | Vérification | Résultat |
 |---|---|---|
-Première recette : Bruno, le 2026-10-07, copie détachée de `thestudy_ME_EX`,
-version `2026-10-07a` — outil fonctionnel, quatre corrections demandées
-(48 anomalies de catégorie, compte côté système limité aux terminaux,
-`Equipement_base` vide pour les 168 systèmes, anomalies prévues mêlées aux
-erreurs). Le détail point par point de cette recette n'est pas reporté ici.
-
-À repasser sur la version `2026-10-07b` :
-
-| # | Vérification | Résultat |
-|---|---|---|
-| R1 | Plus aucune anomalie « element -2000xxx introuvable » ; colonnes `Categories` (30) et `Categorie` (60) renseignées | à faire |
-| R2 | `11_systemes` : `Nb_terminaux_api` et `Nb_elements_reseau` renseignés ; contrôle 1 bis à OK | à faire |
-| R3 | `Equipement_base` : `AUCUN` ou une famille, jamais vide ; vérifier à la main sur deux systèmes (navigateur de systèmes ▸ propriétés) | à faire |
-| R4 | `90_anomalies` : colonne `Nature` ; contrôle 4 n'en compte que les `ERREUR` | à faire |
-| R5 | `2026-10-07c` : « 230V AC » sort 230 en `20_elec_distribution` ; `Tension_V` d'un circuit connu juste en `22` | à faire |
-| R6 | `2026-10-07c` : sur `1981McGill_E_EL_Global`, plus d'`ERREUR` de nom de tableau ou de système de distribution (705 en `b`) | à faire |
+| R1 | Plus aucune anomalie « element -2000xxx introuvable » ; colonnes `Categories` (30) et `Categorie` (60) renseignées | **fait** le 2026-10-07, version `b`, sur la fédérée `thestudy_G_CO` (5 maquettes lues, dont `ME_EX`) — ANALYSE §1, source (b) |
+| R2 | `11_systemes` : `Nb_terminaux_api` et `Nb_elements_reseau` renseignés ; contrôle 1 bis à OK | **fait** le 2026-10-07, version `b`, sur la fédérée `thestudy_G_CO` (5 maquettes lues, dont `ME_EX`) — ANALYSE §1, source (b) |
+| R3 | `Equipement_base` : `AUCUN` ou une famille, jamais vide ; vérifier à la main sur deux systèmes (navigateur de systèmes ▸ propriétés) | **fait en partie** le 2026-10-07 : `AUCUN` sur tous les systèmes, jamais vide ; **vérification à la main d'un système encore à faire** (ANALYSE §1, « reste à corriger » 2) |
+| R4 | `90_anomalies` : colonne `Nature` ; contrôle 4 n'en compte que les `ERREUR` | **fait** le 2026-10-07, version `b`, sur la fédérée `thestudy_G_CO` (5 maquettes lues, dont `ME_EX`) — ANALYSE §1, source (b) |
+| R5 | `2026-10-07c` : « 230V AC » sort 230 en `20_elec_distribution` ; `Tension_V` d'un circuit connu juste en `22` | **fait** le 2026-10-07 sur `1981McGill_CO_FED_Global` : tensions justes (déclaré Bruno, 2026-10-08) |
+| R6 | `2026-10-07c` : sur `1981McGill_E_EL_Global`, plus d'`ERREUR` de nom de tableau ou de système de distribution (705 en `b`) | **fait** le 2026-10-07 sur `1981McGill_CO_FED_Global` : 0 `ERREUR` dans `E_EL` (déclaré Bruno, 2026-10-08) |
 | R7 | `2026-10-07d` : sur `1981McGill_M_CH_Global`, `Nb_poles` des circuits Data / Communication en `NON_APPLICABLE` (9 `ERREUR` en `c`) | à faire |
 | R8 | `2026-10-07d` : un lien lu avec un sous-projet fermé donne l'anomalie « inventaire partiel » et le contrôle prérequis en écart | à faire |
 
