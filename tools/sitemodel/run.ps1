@@ -82,8 +82,10 @@ if (-not (Test-Path -LiteralPath $Audit)) {
     Arreter "le fichier d'audit est introuvable : $Audit" `
             ("verifier le chemin. Ce fichier est celui que le bouton " +
              "AuditVolumes ecrit dans Revit, nomme " +
-             "audit_volumes_zone_<maquette>_<date>.json - par defaut dans " +
-             "le dossier choisi a l'enregistrement (souvent Downloads).")
+             "audit_volumes_zone_<maquette>_<date>.json - depuis le " +
+             "2026-09-28 dans %USERPROFILE%\bimflow\audits_volumes, chemin " +
+             "affiche en fin d'audit ; avant, dans le dossier choisi a " +
+             "l'enregistrement (souvent Downloads).")
 }
 $AuditComplet = (Resolve-Path -LiteralPath $Audit).Path
 

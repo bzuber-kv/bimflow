@@ -53,6 +53,10 @@ CATEGORIES_LARGE = [
 # Volumes de reference seulement.
 CATEGORIES_VOLUME = ["OST_Mass", "OST_MassFloor"]
 
+# Volumes seuls, SANS les planchers de volume : CAR_Surface_sol existe
+# precisement pour se passer d'eux (2026-09-28).
+CATEGORIES_MASSES = ["OST_Mass"]
+
 # Livrable : l'arborescence du projet.
 CATEGORIES_VUES = ["OST_Views"]
 CATEGORIES_FEUILLES = ["OST_Sheets"]
@@ -63,6 +67,9 @@ SOCLE = [
     ("REF_Id", CATEGORIES_VOLUME),
     ("CLS_Usage", CATEGORIES_VOLUME),
     ("CLS_Nature_volume", CATEGORIES_VOLUME),
+    # CAR_ en OCCURRENCE, par exception au PGB §7.5 (CAR_ sur le type) : une
+    # famille in situ n'a qu'un type, et la surface est propre a chaque volume.
+    ("CAR_Surface_sol", CATEGORIES_MASSES),
     # Les DOC_ ne figurent PAS ici : ce sont des parametres de PROJET, portes
     # par le gabarit, pas par le fichier de parametres partages. Critere du
     # 2026-09-19 : rien hors du document ne doit les reconnaitre, donc ils

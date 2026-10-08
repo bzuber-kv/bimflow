@@ -41,11 +41,20 @@ CE QUI EST ECRIT, volume par volume :
                        JAMAIS reecrit, JAMAIS regenere : c'est la cle de
                        jointure vers Ivion, elle doit survivre aux
                        renommages.
+    CAR_Surface_sol    aire de la projection horizontale du contour, en m2,
+                       rafraichie a chaque passage. Seule valeur qui ne vient
+                       PAS du nom : elle vient de la GEOMETRIE, lue par
+                       lib\\bimflow_geometrie et reconstruite par
+                       lib\\bimflow_contour - le code meme dont l'audit se
+                       sert pour la controler. Contour non reconstructible :
+                       rien n'est ecrit pour ce champ, et c'est dit.
+                       Ajoute le 2026-09-28 - NON EPROUVE DANS REVIT.
     CLS_Usage          jamais ecrit (saisie metier)
 
 IDENTITE PAR GUID, JAMAIS PAR NOM (fiche R08). Un nom de parametre se
-renomme, se traduit, se duplique ; le GUID, lui, EST le parametre. Les six
-GUID ci-dessous sont ceux du socle Keovia - ils sont la source, et le
+renomme, se traduit, se duplique ; le GUID, lui, EST le parametre. Les
+GUID ci-dessous - et celui de CAR_Surface_sol, dans lib\\bimflow_geometrie,
+parce que l'audit le lit aussi - sont ceux du socle Keovia - ils sont la source, et le
 fichier shared_parameters/keovia_socle_parametres.txt en est le registre.
 Consequence : un parametre local qui porterait le meme NOM sans le bon GUID
 n'est PAS reconnu, et le volume sort en "parametre absent" plutot que de
@@ -74,13 +83,11 @@ GUID_ID = "7414d6b1-6083-4145-9c1c-784e03243895"        # REF_Id
 GUID_NATURE = "ba2e6c9e-506e-4b97-95aa-a5e3c10cbc40"    # CLS_Nature_volume
 # CLS_Usage e3e496bc-5c59-4d02-b914-428692662dc7 : jamais ecrit par ce script
 
-NOM_DU_GUID = {
-    GUID_ZONE: "REF_Zone",
-    GUID_ETAGE: "REF_Etage",
-    GUID_BATIMENT: "REF_Batiment",
-    GUID_ID: "REF_Id",
-    GUID_NATURE: "CLS_Nature_volume",
-}
+# CAR_Surface_sol : GUID_SURFACE_SOL, importe plus bas de lib\bimflow_geometrie
+
+# Une surface deja portee a moins de ceci de la valeur voulue n'est pas
+# reecrite : la comparaison de deux reels ne se fait pas a l'egalite.
+TOL_SURFACE_INCHANGEE_M2 = 1e-6
 
 # REF_Batiment : valeurs longues arretees pour l'affaire The Study
 # (decision du 2026-09-19b). La regle du 2026-09-24 choisit le CODE - cle ou
@@ -108,15 +115,31 @@ try:
                               incoherence_etage_nature)
     from bimflow_maquette import (etat as etat_maquette, mot_de_letat,
                                   confirmer_centrale)
+    from bimflow_geometrie import (GUID_SURFACE_SOL, parametre_par_guid,
+                                   est_une_surface, parcourir_geometrie,
+                                   faces_du_volume, m2_vers_interne,
+                                   interne_vers_m2)
+    from bimflow_contour import contour_du_volume
 except ImportError:
     from pyrevit import forms as _formulaires
     _formulaires.alert(
-        u"Modules partages bimflow_noms / bimflow_maquette introuvables.\n\n"
+        u"Modules partages bimflow_noms / bimflow_maquette / "
+        u"bimflow_geometrie / bimflow_contour introuvables.\n\n"
         u"Ils doivent se trouver dans bimflow.extension\\lib\\. Sans eux, ni "
-        u"le decoupage des noms de volumes ni la porte d'entree des ecritures "
-        u"ne sont disponibles, et ce script ne s'execute pas.",
+        u"le decoupage des noms de volumes, ni la surface au sol, ni la "
+        u"porte d'entree des ecritures ne sont disponibles, et ce script ne "
+        u"s'execute pas.",
         exitscript=True,
     )
+
+NOM_DU_GUID = {
+    GUID_ZONE: "REF_Zone",
+    GUID_ETAGE: "REF_Etage",
+    GUID_BATIMENT: "REF_Batiment",
+    GUID_ID: "REF_Id",
+    GUID_NATURE: "CLS_Nature_volume",
+    GUID_SURFACE_SOL: "CAR_Surface_sol",
+}
 
 from Autodesk.Revit.DB import (
     FilteredElementCollector,
@@ -186,24 +209,8 @@ out.print_md(u"**Maquette** : `{0}` - {1}".format(
 # --------------------------------------------------------------------------
 
 
-def parametre_par_guid(el, guid):
-    """Le parametre PARTAGE dont le GUID est celui-la, ou None.
-
-    On balaie les parametres de l'element : LookupParameter() chercherait
-    par NOM, et c'est precisement ce qu'on refuse (R08)."""
-    try:
-        parametres = list(el.Parameters)
-    except Exception:
-        return None
-    for p in parametres:
-        try:
-            if not p.IsShared:
-                continue
-            if str(p.GUID).lower() == guid:
-                return p
-        except Exception:
-            continue
-    return None
+# parametre_par_guid() vit dans lib\bimflow_geometrie depuis le 2026-09-28 :
+# l'audit lit CAR_Surface_sol avec la meme regle.
 
 
 def lire_texte(el, guid, eid):
@@ -217,6 +224,52 @@ def lire_texte(el, guid, eid):
     if p.IsReadOnly:
         return p, p.AsString(), u"parametre en lecture seule"
     return p, p.AsString(), None
+
+
+def lire_surface(el):
+    """(parametre, valeur en m2 ou None si vide, motif de refus).
+
+    Le pendant de lire_texte() pour CAR_Surface_sol : meme identite par GUID,
+    et en plus le TYPE - une Longueur porte aussi un Double."""
+    p = parametre_par_guid(el, GUID_SURFACE_SOL)
+    if p is None:
+        return None, None, u"parametre absent de ce volume (non lie, ou lie "\
+                           u"sous un autre GUID)"
+    ok, motif = est_une_surface(p)
+    if not ok:
+        # le parametre existe, il n'est pas "absent" : il est faux, et le
+        # motif le dit
+        return p, None, motif
+    avant = interne_vers_m2(p.AsDouble()) if p.HasValue else None
+    if p.IsReadOnly:
+        return p, avant, u"parametre en lecture seule"
+    return p, avant, None
+
+
+def surface_sol(el):
+    """(aire en m2 arrondie au cm2, ou None, motif du refus).
+
+    Le chemin est CELUI DE L'AUDIT, a l'identique : memes solides, memes
+    faces dans le meme ordre, meme reconstruction de contour. C'est ce qui
+    permet a l'audit de controler la valeur a 0,01 m2 pres."""
+    try:
+        pleins, _libres, _vides, _autres = parcourir_geometrie(el)
+    except Exception as err:
+        return None, u"geometrie illisible : {0}".format(err)
+    if not pleins:
+        return None, u"aucun solide plein"
+    erreurs_faces = []
+    faces = faces_du_volume(
+        pleins, lambda etape, err: erreurs_faces.append(
+            u"{0} : {1}".format(etape, err)))
+    if erreurs_faces:
+        # Une face perdue peut ouvrir le contour ou, pire, le fermer faux :
+        # on n'ecrit pas une surface calculee sur une geometrie incomplete.
+        return None, u"face(s) illisible(s) - " + u" ; ".join(erreurs_faces)
+    _anneau, aire, motif = contour_du_volume(faces)
+    if aire is None:
+        return None, motif
+    return round(aire, 4), None
 
 
 ids = list(
@@ -234,6 +287,7 @@ ignores = []        # (eid, nom_famille, motif)
 inchanges = []      # (eid, nom_famille, guid, motif)
 incoherences = []   # (eid, nom_famille, motif)
 sans_parametre = {}  # guid -> [eid]
+sans_contour = []   # (eid, nom_famille, motif) - CAR_Surface_sol non ecrit
 
 for eid in ids:
     el = doc.GetElement(eid)
@@ -306,6 +360,27 @@ for eid in ids:
         prevues.append((eid, nom_famille, GUID_ID, texte(avant),
                         nouvel_identifiant()))
 
+    # --- la surface au sol : de la GEOMETRIE, pas du nom ------------------
+    p, avant, refus_p = lire_surface(el)
+    if p is None and refus_p is not None:
+        sans_parametre.setdefault(GUID_SURFACE_SOL, []).append(eid)
+    if refus_p is not None:
+        inchanges.append((eid, nom_famille, GUID_SURFACE_SOL, refus_p))
+        continue
+    aire, motif = surface_sol(el)
+    if aire is None:
+        sans_contour.append((eid, nom_famille, motif))
+        inchanges.append((eid, nom_famille, GUID_SURFACE_SOL,
+                          u"contour non reconstruit : {0}".format(motif)))
+        continue
+    if avant is not None and abs(avant - aire) < TOL_SURFACE_INCHANGEE_M2:
+        inchanges.append((eid, nom_famille, GUID_SURFACE_SOL,
+                          u"deja a la valeur voulue"))
+        continue
+    prevues.append((eid, nom_famille, GUID_SURFACE_SOL,
+                    u"" if avant is None else u"{0:.4f} m²".format(avant),
+                    aire))
+
 volumes_touches = sorted(set([id_de(e) for e, n, g, a, b in prevues]))
 
 # --------------------------------------------------------------------------
@@ -325,11 +400,15 @@ out.print_md(
     u"- **{1}** ecriture(s) prevue(s) sur **{2}** volume(s)\n"
     u"- **{3}** champ(s) deja conforme(s) ou non modifiable(s)\n"
     u"- **{4}** volume(s) ignore(s)\n"
-    u"- `REF_Batiment` ecrit en **{5}**".format(
+    u"- `REF_Batiment` ecrit en **{5}**\n"
+    u"- `CAR_Surface_sol` : **{6}** ecriture(s) prevue(s), **{7}** volume(s) "
+    u"sans contour, **{8}** sans le parametre".format(
         len(ids), len(prevues), len(volumes_touches), len(inchanges),
         len(ignores),
         u"valeurs longues (Junior, Middle, ...)" if VALEURS_LONGUES
-        else u"codes courts (JU, MI, ...)")
+        else u"codes courts (JU, MI, ...)",
+        len([1 for e, n, g, a, b in prevues if g == GUID_SURFACE_SOL]),
+        len(sans_contour), len(sans_parametre.get(GUID_SURFACE_SOL, [])))
 )
 
 out.print_md(u"## Ecritures prevues")
@@ -341,7 +420,9 @@ else:
     for eid, nom, guid, avant, apres in prevues[:400]:
         lignes.append(u"| {0} | `{1}` | `{2}` | {3} | **{4}** |".format(
             lien_de(eid), texte(nom), NOM_DU_GUID.get(guid, guid),
-            u"*(vide)*" if not avant else u"`{0}`".format(avant), apres))
+            u"*(vide)*" if not avant else u"`{0}`".format(avant),
+            u"{0:.4f} m²".format(apres) if guid == GUID_SURFACE_SOL
+            else apres))
     out.print_md(u"\n".join(lignes))
     if len(prevues) > 400:
         out.print_md(u"*... et {0} autre(s) ecriture(s), toutes au CSV du "
@@ -352,6 +433,15 @@ if not ignores:
     out.print_md(u"*Aucun.*")
 else:
     for eid, nom, motif in ignores:
+        out.print_md(u"- {0} `{1}` : {2}".format(lien_de(eid), texte(nom), motif))
+
+if sans_contour:
+    out.print_md(u"## CAR_Surface_sol non calculee - contour non reconstruit")
+    out.print_md(
+        u"Les autres champs de ces volumes sont ecrits ; `CAR_Surface_sol` ne "
+        u"l'est pas, et garde sa valeur d'avant s'il en avait une. Une surface "
+        u"calculee sur un contour repare serait plausible et fausse.")
+    for eid, nom, motif in sans_contour:
         out.print_md(u"- {0} `{1}` : {2}".format(lien_de(eid), texte(nom), motif))
 
 if incoherences:
@@ -459,7 +549,11 @@ try:
                 u"{0} (GUID {1}) introuvable sur le volume {2} au moment "
                 u"d'ecrire".format(NOM_DU_GUID.get(guid, u"?"), guid,
                                    id_de(eid)))
-        if not p.Set(apres):
+        # CAR_Surface_sol se prepare en m2, Revit la stocke en pieds carres ;
+        # float() force la surcharge Set(Double).
+        valeur = (float(m2_vers_interne(apres)) if guid == GUID_SURFACE_SOL
+                  else apres)
+        if not p.Set(valeur):
             raise Exception(
                 u"Set() a rendu False sur {0} du volume {1} (`{2}`)".format(
                     NOM_DU_GUID.get(guid, guid), id_de(eid), texte(nom)))
@@ -494,7 +588,8 @@ if echec is not None:
 
 out.print_md(
     u"| Resultat | Nombre | Motif |\n|---|---:|---|\n"
-    u"| **Ecrits** | {0} | valeurs deduites du nom de famille |\n"
+    u"| **Ecrits** | {0} | valeurs deduites du nom de famille ; "
+    u"`CAR_Surface_sol`, du contour |\n"
     u"| **Inchanges** | {1} | deja a la valeur voulue, deja renseignes "
     u"(`REF_Id`), ou non modifiables |\n"
     u"| **Ignores** | {2} | nom hors motif, code de batiment inconnu, ou "
@@ -512,7 +607,9 @@ out.print_md(
     u"> **Ce que ce resultat ne prouve pas.** Le script rapporte ce que "
     u"l'API lui a rendu, pas ce que la maquette contient. La verification "
     u"se fait en **nomenclature de Volumes** : colonnes `REF_Zone`, "
-    u"`REF_Etage`, `REF_Batiment`, `REF_Id`, `CLS_Nature_volume`.\n\n"
+    u"`REF_Etage`, `REF_Batiment`, `REF_Id`, `CLS_Nature_volume`, "
+    u"`CAR_Surface_sol` - et pour cette derniere par le bouton **Audit "
+    u"volumes zone**, qui la rapproche du contour.\n\n"
     u"> `REF_Id` n'est ecrit qu'une fois. Un volume renomme garde son "
     u"identifiant : c'est la cle de jointure vers Ivion.\n\n"
     u"> `CLS_Usage` n'est jamais touche par ce script - saisie metier."
