@@ -1,0 +1,8 @@
+# Dependances de tools/marquages UNIQUEMENT.
+# Ce n'est PAS une dependance de l'extension pyRevit : OpenCV n'existe pas
+# sous IronPython, et rien de ce fichier ne s'installe dans pyRevit.
+# CPython 3.12 hors Revit.
+# opencv-contrib et non opencv : le detecteur de segments LSD et SIFT y sont.
+opencv-contrib-python>=4.10
+numpy>=1.26
+pillow>=10.0
