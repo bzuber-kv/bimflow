@@ -87,10 +87,49 @@ y compris OneDrive. La règle §8g (`03_REGLES_DEV.md`) n'interdit que le
 
 ## 6. Recette
 
-À consigner ici après exécution : maquette, date, comptes par rubrique,
-résidus de la transformation, signalements.
+Première exécution le **2026-10-12**, version `2026-10-12a`, Revit 2026
+(26.4.0.32), maquettes **centrales** cloud de The Study, aucun sous-projet
+fermé. Portée des comptes : **spécifique The Study** ; portée des constats
+sur l'outil : générique.
 
-| Maquette | Date | Niveaux | Quadrillages | Volumes | Pièces | Sous-projets | Liens | Résidu (mm) | Signalements |
+| Maquette | Heure | Niveaux | Quadrillages | Volumes | Pièces | Sous-projets | Liens | Résidu transformation | Signalements |
 |---|---|---|---|---|---|---|---|---|---|
-| thestudy_G_AN | — | | | | | | | | |
-| thestudy_G_VZ | — | | | | | | | | |
+| `thestudy_G_AN` | 16:58 | 23 | 73 | 0 | 0 | 37 (1 753 éléments, 16 vides) | 19 (18 nuages, 1 Revit) | 0,000 mm (inverse) | 1 |
+| `thestudy_G_VL` | 16:59 | 23 | 0 | 217 | 0 | 36 (2 189 éléments, 17 vides) | 1 (Revit) | 0,000 mm (inverse) | 6 |
+
+**Ce que la recette établit sur l'outil (mesuré).**
+- Le sens de `GetTotalTransform` est l'**inverse** : résidu 0,000 mm sur le
+  point de base et le point topographique, contre ~9,7·10⁹ mm pour le sens
+  direct. Le choix automatique fonctionne ; les coordonnées partagées sont
+  fiables.
+- Point de base relu à (296 934,64 ; 5 038 973,46 ; 94,695 m) et point
+  topographique à z = 0 : conforme au géoréférencement consigné au PEP A_049.
+- `elevation_pbp_mm` = `Level.Elevation` sur les 23 niveaux, dont la base
+  d'élévation de type est le point de base : contre-vérification cohérente.
+- Z partagé des quadrillages = 123,76 m : c'est le z = 0 interne, donc la
+  cote de l'origine interne. Exact, mais **sans signification** pour un
+  quadrillage, qui n'a pas d'altitude propre.
+- Le champ `nom` d'un volume in situ est le **nom du type**
+  (`Volume Ivion` pour 210 volumes) ; le nom porteur de sens est `famille`
+  (`VOL_nnn__…`). À clarifier dans le JSON (point ouvert ci-dessous).
+
+**Ce que la recette fait apparaître dans les maquettes (mesuré, à traiter côté A_049).**
+- `REF_Etage` vide sur les deux niveaux `Site` (`EXT_BLVD`, `EXT_PARC`) :
+  vide légitime ou valeur manquante, à décider.
+- Quadrillages : deux familles d'orientation — 31,34° / 121,34° (Senior
+  Central, Junior, Middle, parking) et 37,94° / 127,94° (Senior East),
+  soit **6,60°** entre les deux trames.
+- `thestudy_G_VL` : **2 volumes sans aucun paramètre** (`Volume 1`
+  id 5532336, `Volume 2` id 5530844, emprise ~36 × 67 m) et **un `REF_Id`
+  en double** (`dbe39340-…`) sur `VOL_090__SC_Bp_Amg_1p_3p__FLOOR_2__ETAGE`
+  et `VOL_091__SC_Bp_Amg_1p_3p__ROOF__TOITURE` — or `REF_Id` est la clé de
+  jointure vers Ivion et ne doit jamais se répéter. 217 volumes contre 202
+  au 2026-09-24.
+- Aucune pièce dans l'une ou l'autre maquette.
+
+**Points ouverts sur l'outil.**
+1. `nom` d'un volume : publier aussi le nom de famille en tête, ou renommer
+   le champ `nom_type`.
+2. Doublons de `REF_Id` : les compter au bilan (c'est une mesure, pas une
+   déduction) — à décider.
+3. Les deux JSON ont été écrits dans `Downloads`, pas dans `maquette_photo`.
