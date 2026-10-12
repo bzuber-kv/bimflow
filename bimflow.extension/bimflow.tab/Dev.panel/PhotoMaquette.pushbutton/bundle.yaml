@@ -2,7 +2,7 @@ title: |-
   Photo
   maquette
 tooltip: >-
-  NON ÉPROUVÉ (2026-10-12). Lecture seule — aucune transaction.
+  A tourné le 2026-10-12 (G_AN, G_VL). Lecture seule — aucune transaction.
   Exporte l'état du modèle actif en un JSON : niveaux, quadrillages
   (coordonnées partagées), volumes (REF_/CLS_ lus par GUID), pièces,
   sous-projets, liens. Le dossier de sortie est demandé à chaque clic.

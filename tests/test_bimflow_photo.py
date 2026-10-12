@@ -195,8 +195,9 @@ def test_bouton_lecture_seule(fichier):
                      ".IntegerValue", "script.exit"):
         if interdit == ".IntegerValue":
             # seule exception admise : WorksetId.IntegerValue
-            assert re.findall(r"(\w+)\.IntegerValue", sans_commentaires) \
-                in ([], ["Id"])
+            # seule exception admise : WorksetId (w.Id).IntegerValue
+            assert set(re.findall(r"([\w.]+)\.IntegerValue",
+                                  sans_commentaires)) <= set(["w.Id"])
             continue
         assert interdit not in sans_commentaires, interdit
 
@@ -238,12 +239,48 @@ def test_doublons_ref_id():
     assert len(g) == 1 and g[0]["valeur"] == "a" and g[0]["nombre"] == 2
     assert [e["id"] for e in g[0]["elements"]] == [1, 2]
     comptes, sig = ph.bilan(OrderedDict([("volumes", v)]))
-    assert comptes["volumes"]["doublons_REF_Id"] == g
-    assert any("EN DOUBLE" in s and "VOL_090 (id 1)" in s and "VOL_091 (id 2)" in s
+    assert comptes["volumes"]["unicite_REF_Id"]["doublons"] == g
+    assert comptes["volumes"]["unicite_REF_Id"]["valeurs_controlees"] == 3
+    assert any("EN DOUBLE" in s and "`VOL_090` (id 1)" in s and "`VOL_091` (id 2)" in s
                for s in sig)
 
 
 def test_aucun_doublon_liste_vide():
     comptes, sig = ph.bilan(OrderedDict())
-    assert comptes["volumes"]["doublons_REF_Id"] == []
-    assert not any("EN DOUBLE" in s for s in sig)
+    assert comptes["volumes"]["unicite_REF_Id"]["doublons"] == []
+    assert not any("EN DOUBLE" in s or "NON CONTROLEE" in s for s in sig)
+
+
+def _vol(i, v, porteur="instance"):
+    return OrderedDict([("id", i), ("nom", "Volume Ivion"), ("famille", "F%d" % i),
+                        ("REF_Id", v), ("parametres", OrderedDict([
+                            ("REF_Id", OrderedDict([("valeur", v), ("statut", "lu"),
+                                                    ("porteur", porteur)]))]))])
+
+
+def test_unicite_non_controlee_si_rien_lu():
+    v = [_vol(1, None), _vol(2, ph.NON_LU)]
+    comptes, sig = ph.bilan(OrderedDict([("volumes", v)]))
+    assert comptes["volumes"]["unicite_REF_Id"]["valeurs_controlees"] == 0
+    assert any("NON CONTROLEE" in s for s in sig)
+
+
+def test_valeur_portee_par_le_type_n_est_pas_un_doublon():
+    v = [_vol(1, "a", "type"), _vol(2, "a", "type"), _vol(3, "b")]
+    ctrl = ph.controle_unicite(v, "REF_Id")
+    assert ctrl["doublons"] == [] and ctrl["portees_par_type"] == 2
+    assert ctrl["valeurs_controlees"] == 1
+    comptes, sig = ph.bilan(OrderedDict([("volumes", v)]))
+    assert any("TYPE" in s for s in sig)
+
+
+def test_doublon_insensible_casse_et_blancs():
+    v = [_vol(1, "ABC-1"), _vol(2, " abc-1 ")]
+    g = ph.doublons(v, "REF_Id")
+    assert len(g) == 1 and g[0]["valeur"] == "ABC-1"
+
+
+def test_famille_non_lue_signalee():
+    v = [OrderedDict([("id", 1), ("famille", ph.NON_LU), ("boite_mm", {})])]
+    comptes, sig = ph.bilan(OrderedDict([("volumes", v)]))
+    assert comptes["volumes"]["champs_nuls"] == OrderedDict([("famille (NON_LU)", 1)])
