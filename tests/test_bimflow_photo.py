@@ -56,7 +56,7 @@ def test_guids_requis_signale_les_absents():
     assert list(trouves) == ["A"] and manquants == ["B"]
 
 
-# --- configuration -----------------------------------------------------------
+# --- rappel du dernier dossier -----------------------------------------------
 
 def test_developper_variables_windows():
     env = {"USERPROFILE": "C:\\Users\\bz"}
@@ -89,12 +89,6 @@ def test_config_illisible(tmp_path):
     f.write_text(u"{pas du json", encoding="utf-8")
     assert "illisible" in ph.lire_config(str(f))[2]
 
-
-def test_exemple_de_config_du_depot_est_lisible():
-    f = os.path.join(RACINE, "config", "photo_maquette.exemple.json")
-    dossier, brut, motif = ph.lire_config(f, {"USERPROFILE": "C:\\U"})
-    assert motif is None and dossier.startswith("C:\\U\\OneDrive")
-    assert "<affaire>" in brut  # aucune affaire en dur dans le standard
 
 
 # --- nom du fichier ----------------------------------------------------------
@@ -191,7 +185,7 @@ def _code(nom):
         return f.read()
 
 
-@pytest.mark.parametrize("fichier", ["script.py", "config.py"])
+@pytest.mark.parametrize("fichier", ["script.py"])
 def test_bouton_lecture_seule(fichier):
     code = _code(fichier)
     sans_commentaires = "\n".join(
@@ -221,3 +215,12 @@ def test_bouton_icone_96_argb():
     im = Image.open(os.path.join(BOUTON, "icon.png"))
     assert im.size == (96, 96) and im.mode == "RGBA"
     assert im.getpixel((0, 0))[3] == 0
+
+
+def test_bouton_demande_toujours_le_dossier():
+    code = _code("script.py")
+    assert code.count("forms.pick_folder(") == 1
+    # le choix ne depend d'aucune condition : l'appel est au niveau du module
+    ligne = [l for l in code.splitlines() if "forms.pick_folder(" in l][0]
+    assert not ligne.startswith(" ")
+    assert not os.path.exists(os.path.join(BOUTON, "config.py"))

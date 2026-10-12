@@ -5,7 +5,7 @@ tooltip: >-
   NON ÉPROUVÉ (2026-10-12). Lecture seule — aucune transaction.
   Exporte l'état du modèle actif en un JSON : niveaux, quadrillages
   (coordonnées partagées), volumes (REF_/CLS_ lus par GUID), pièces,
-  sous-projets, liens. Maj+clic : choisir le dossier de sortie.
+  sous-projets, liens. Le dossier de sortie est demandé à chaque clic.
   Doc : docs\photo_maquette.md
 author: Keovia Solutions inc.
 highlight: new

@@ -29,10 +29,10 @@ present sans valeur, null aussi ; une lecture qui leve une exception vaut
 NON_LU. Les trois cas sont distingues dans le JSON (statut) et comptes au
 rapport.
 
-SORTIE. Le dossier vient d'un fichier de configuration du POSTE,
-%APPDATA%\\bimflow\\photo_maquette.json, cle "dossier_sortie" (les %VAR%
-y sont developpees). Absent ou inutilisable : le bouton demande un dossier
-et le retient. Maj+clic (config.py) pour en changer. Le fichier s'appelle
+SORTIE. Le dossier est demande a CHAQUE execution (decision Bruno du
+2026-10-12). Le dernier choisi est rappele dans le titre de la boite, lu
+dans %APPDATA%\\bimflow\\photo_maquette.json - un simple rappel, jamais
+utilise sans etre choisi. Annuler la boite : rien n'est ecrit. Le fichier s'appelle
 <modele>_<AAAA-MM-JJ_HHMM>.json et n'ecrase jamais une photo precedente.
 Le chemin complet s'affiche en fin de rapport.
 
@@ -666,32 +666,25 @@ donnees["signalements"] = signalements + sig_bilan
 # 10. Dossier de sortie, ecriture du JSON
 # --------------------------------------------------------------------------
 
-fichier_config = photo.chemin_config()
-dossier, brut, motif = photo.lire_config(fichier_config)
-if dossier is not None and not os.path.isdir(dossier):
-    parent = os.path.dirname(dossier.rstrip(u"\\/"))
-    if parent and os.path.isdir(parent):
-        try:
-            os.makedirs(dossier)
-        except Exception as err:
-            motif = u"dossier {0} non cree : {1}".format(dossier, err)
-            dossier = None
-    else:
-        motif = u"dossier configure introuvable : {0}".format(dossier)
-        dossier = None
-
-if dossier is None:
-    sortie.print_md(u"*Dossier de sortie : {0}*".format(motif))
-    choisi = forms.pick_folder(
-        title=u"Photo maquette - dossier de sortie (sera retenu)")
-    if choisi:
-        dossier = choisi
-        try:
-            photo.ecrire_config(fichier_config, choisi)
-            sortie.print_md(u"Dossier retenu dans `{0}`.".format(
-                fichier_config))
-        except Exception as err:
-            sortie.print_md(u"Dossier NON retenu ({0}).".format(err))
+# Le dossier est DEMANDE A CHAQUE EXECUTION (decision Bruno, 2026-10-12) :
+# une photo se range dans l'affaire de la maquette, et un dossier retenu
+# d'une fois sur l'autre finirait par ranger une maquette dans la mauvaise
+# affaire. Le dernier dossier choisi n'est qu'un RAPPEL, affiche dans le
+# titre de la boite ; il n'est jamais utilise sans qu'on le choisisse.
+fichier_memo = photo.chemin_config()
+dernier, brut, motif = photo.lire_config(fichier_memo)
+titre = u"Photo maquette - {0} - dossier de sortie".format(doc.Title)
+if dernier:
+    titre = u"{0} (dernier : {1})".format(titre, dernier)
+dossier = forms.pick_folder(title=titre)
+if dossier:
+    try:
+        photo.ecrire_config(fichier_memo, dossier)
+    except Exception as err:
+        sortie.print_md(u"*Rappel du dernier dossier non enregistre ({0}).*"
+                        .format(err))
+else:
+    sortie.print_md(u"*Aucun dossier choisi : la photo n'est pas ecrite.*")
 
 chemin_json = None
 if dossier:

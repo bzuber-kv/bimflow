@@ -57,23 +57,21 @@ détaillé dans `parametres` : `valeur`, `statut`, `porteur` (instance ou type).
 `<dossier>\<modele>_<AAAA-MM-JJ_HHMM>.json`, UTF-8 sans BOM, jamais écrasé
 (`_2`, `_3`… si la minute est prise). Le chemin s'affiche en fin de rapport.
 
-Le dossier vient d'un **fichier du poste**, hors dépôt :
-`%APPDATA%\bimflow\photo_maquette.json`, clé `dossier_sortie` ; les `%VAR%` y
-sont développées. Absent ou inutilisable → le bouton demande un dossier et le
-retient. **Maj+clic** pour en changer. Le dossier configuré est créé s'il
-manque **et** que son parent existe ; sinon on redemande.
+Le dossier est **demandé à chaque clic** (décision Bruno, 2026-10-12) : une
+photo se range dans l'affaire de la maquette photographiée, et un dossier
+retenu d'une fois sur l'autre finirait par en ranger une dans la mauvaise
+affaire. Le dernier dossier choisi est rappelé dans le titre de la boîte
+(lu dans `%APPDATA%\bimflow\photo_maquette.json`), jamais utilisé sans être
+choisi. Boîte annulée : rien n'est écrit, et le rapport le dit.
 
-Exemple versionné : `config\photo_maquette.exemple.json` (`<affaire>` à
-remplacer). **Instance The Study** (portée : spécifique The Study) :
-
-```
-%USERPROFILE%\OneDrive - KEOVIA Solutions\WORK\affaires\A_049_TheStudy\context\ref\maquette_photo
-```
+Instance The Study (portée : spécifique The Study) :
+`%USERPROFILE%\OneDrive - KEOVIA Solutions\WORK\affaires\A_049_TheStudy\context\ref\maquette_photo`
 
 ⚠ **Écart signalé, non tranché** : `Audit volumes` et `Renommer volumes`
 interdisent toute sortie sous OneDrive ou `WORK` (`FRAGMENTS_INTERDITS`). Ce
-bouton, à la demande du brief du 2026-10-12, écrit là où la configuration le
-dit — y compris OneDrive. Règle commune à décider.
+bouton, à la demande du brief du 2026-10-12, écrit dans le dossier choisi —
+y compris OneDrive. La règle §8g (`03_REGLES_DEV.md`) n'interdit que le
+*code* dans OneDrive, pas les données. Règle commune à décider.
 
 ## 5. Limites connues
 
