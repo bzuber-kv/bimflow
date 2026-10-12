@@ -73,7 +73,20 @@ bouton, à la demande du brief du 2026-10-12, écrit dans le dossier choisi —
 y compris OneDrive. La règle §8g (`03_REGLES_DEV.md`) n'interdit que le
 *code* dans OneDrive, pas les données. Règle commune à décider.
 
-## 5. Limites connues
+## 5. Unicité des identifiants — contrôle a posteriori
+
+Un copier-coller Revit (copier, réseau, miroir, groupe, « coller aligné »)
+recopie toutes les valeurs d'instance, `REF_Id` compris : l'unicité d'un
+identifiant écrit dans un paramètre n'est **pas** garantie par Revit. Choix
+retenu (Bruno, 2026-10-12) : pas de prévention, une **unicité garantie a
+posteriori**, par contrôle à chaque mise à jour régulière de la production,
+quitte à tenir des matrices de passage datées. Ce bouton porte le contrôle
+(liste `IDENTIFIANTS_UNIQUES` de `lib\bimflow_photo.py`) ; l'arbitrage et la
+correction relèvent d'un autre outil, à spécifier.
+Règle candidate — **générique, à recadrer** ; cas d'origine : The Study,
+VOL_090 / VOL_091 (2026-10-12).
+
+## 6. Limites connues
 
 - Sous-projets fermés : leurs éléments ne sont pas chargés et manquent à tous
   les comptes. Annoncés en tête de rapport ; leur nombre d'éléments vaut null.
@@ -85,7 +98,7 @@ y compris OneDrive. La règle §8g (`03_REGLES_DEV.md`) n'interdit que le
   le regroupement n'est pas fait.
 - Liens IFC : sortent en type `Revit` (ce sont des `RevitLinkInstance`).
 
-## 6. Recette
+## 7. Recette
 
 Première exécution le **2026-10-12**, version `2026-10-12a`, Revit 2026
 (26.4.0.32), maquettes **centrales** cloud de The Study, aucun sous-projet
@@ -120,16 +133,21 @@ sur l'outil : générique.
   Central, Junior, Middle, parking) et 37,94° / 127,94° (Senior East),
   soit **6,60°** entre les deux trames.
 - `thestudy_G_VL` : **2 volumes sans aucun paramètre** (`Volume 1`
-  id 5532336, `Volume 2` id 5530844, emprise ~36 × 67 m) et **un `REF_Id`
-  en double** (`dbe39340-…`) sur `VOL_090__SC_Bp_Amg_1p_3p__FLOOR_2__ETAGE`
+  id 5532336, `Volume 2` id 5530844, emprise ~36 × 67 m) — **chantier en
+  cours** déclaré par Bruno (rattacher les zones extérieures aux étages),
+  pas un défaut. Et **un `REF_Id` en double** (`dbe39340-…`) sur `VOL_090__SC_Bp_Amg_1p_3p__FLOOR_2__ETAGE`
   et `VOL_091__SC_Bp_Amg_1p_3p__ROOF__TOITURE` — or `REF_Id` est la clé de
-  jointure vers Ivion et ne doit jamais se répéter. 217 volumes contre 202
-  au 2026-09-24.
+  jointure vers Ivion et ne doit jamais se répéter. Cause confirmée par
+  Bruno : VOL_091 obtenu par **copie de VOL_090** après écriture des
+  paramètres — le copier-coller Revit recopie toutes les valeurs d'instance.
+  217 volumes contre 202 au 2026-09-24.
 - Aucune pièce dans l'une ou l'autre maquette.
 
 **Points ouverts sur l'outil.**
 1. `nom` d'un volume : publier aussi le nom de famille en tête, ou renommer
    le champ `nom_type`.
-2. Doublons de `REF_Id` : les compter au bilan (c'est une mesure, pas une
-   déduction) — à décider.
+2. ~~Doublons de `REF_Id`~~ — **fait** (version `2026-10-12b`) : comptés
+   au bilan, listés au rapport (section « Unicité ») et dans le JSON
+   (`comptes.volumes.doublons_REF_Id`). Rejoué sur la photo de G_VL : trouve
+   VOL_090 / VOL_091. Rien n'est corrigé, l'original n'est pas désigné.
 3. Les deux JSON ont été écrits dans `Downloads`, pas dans `maquette_photo`.

@@ -224,3 +224,26 @@ def test_bouton_demande_toujours_le_dossier():
     ligne = [l for l in code.splitlines() if "forms.pick_folder(" in l][0]
     assert not ligne.startswith(" ")
     assert not os.path.exists(os.path.join(BOUTON, "config.py"))
+
+
+def test_doublons_ref_id():
+    v = [OrderedDict([("id", 1), ("nom", "Volume Ivion"), ("famille", "VOL_090"), ("REF_Id", "a")]),
+         OrderedDict([("id", 2), ("nom", "Volume Ivion"), ("famille", "VOL_091"), ("REF_Id", "a")]),
+         OrderedDict([("id", 3), ("nom", "Volume Ivion"), ("famille", "VOL_092"), ("REF_Id", "b")]),
+         OrderedDict([("id", 4), ("nom", "Volume 1"), ("famille", "Volume 1"), ("REF_Id", None)]),
+         OrderedDict([("id", 5), ("nom", "Volume 2"), ("famille", "Volume 2"), ("REF_Id", None)]),
+         OrderedDict([("id", 6), ("nom", "x"), ("famille", "x"), ("REF_Id", ph.NON_LU)]),
+         OrderedDict([("id", 7), ("nom", "y"), ("famille", "y"), ("REF_Id", ph.NON_LU)])]
+    g = ph.doublons(v, "REF_Id")
+    assert len(g) == 1 and g[0]["valeur"] == "a" and g[0]["nombre"] == 2
+    assert [e["id"] for e in g[0]["elements"]] == [1, 2]
+    comptes, sig = ph.bilan(OrderedDict([("volumes", v)]))
+    assert comptes["volumes"]["doublons_REF_Id"] == g
+    assert any("EN DOUBLE" in s and "VOL_090 (id 1)" in s and "VOL_091 (id 2)" in s
+               for s in sig)
+
+
+def test_aucun_doublon_liste_vide():
+    comptes, sig = ph.bilan(OrderedDict())
+    assert comptes["volumes"]["doublons_REF_Id"] == []
+    assert not any("EN DOUBLE" in s for s in sig)

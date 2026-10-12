@@ -68,7 +68,7 @@ bimflow - Keovia Solutions inc. - v1 2026-10-12
 __title__ = "Photo\nmaquette"
 __author__ = "Keovia Solutions inc."
 
-VERSION = u"2026-10-12a"
+VERSION = u"2026-10-12b"
 
 # Ecart admis entre la position partagee annoncee par Revit et celle que la
 # transformation calcule, sur les points de controle, en mm.
@@ -718,6 +718,19 @@ for rubrique in (u"niveaux", u"volumes"):
         table_data=[[nom, s[photo.LU], s[photo.VIDE], s[photo.ABSENT],
                      s[photo.ILLISIBLE]] for nom, s in stat.items()],
         columns=[u"Parametre", u"lu", u"vide", u"absent", u"NON_LU"])
+
+for rubrique, champs in photo.IDENTIFIANTS_UNIQUES.items():
+    for champ in champs:
+        groupes = comptes[rubrique].get(u"doublons_" + champ) or []
+        sortie.print_md(u"### Unicite - `{0}` ({1})".format(champ, rubrique))
+        if not groupes:
+            sortie.print_md(u"Aucun doublon.")
+            continue
+        sortie.print_table(
+            table_data=[[g[u"valeur"], g[u"nombre"], u", ".join(
+                u"{0} (id {1})".format(e[u"famille"] or e[u"nom"], e[u"id"])
+                for e in g[u"elements"])] for g in groupes],
+            columns=[u"Valeur", u"Elements", u"Qui"])
 
 if pieces:
     etats = OrderedDict()

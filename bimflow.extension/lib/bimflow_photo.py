@@ -274,6 +274,38 @@ def _champs_nuls(enregistrement, champs):
     return manques
 
 
+# Identifiants qui doivent etre UNIQUES dans une maquette, par rubrique.
+# REF_Id : cle de jointure vers Ivion (socle). Un copier-coller dans Revit
+# recopie la valeur : l'unicite se controle A POSTERIORI (decision Bruno du
+# 2026-10-12), d'ou ce comptage a chaque photo. Le comptage ne corrige rien
+# et ne designe pas l'original : il liste les elements qui partagent la cle.
+IDENTIFIANTS_UNIQUES = OrderedDict([(u"volumes", (u"REF_Id",))])
+
+
+def doublons(elements, champ):
+    """[{valeur, nombre, elements:[{id, nom, famille}]}] pour chaque valeur
+    portee par plus d'un element. null et NON_LU ne sont pas des valeurs."""
+    groupes = OrderedDict()
+    for el in elements:
+        v = el.get(champ)
+        if v is None or v == NON_LU or v == u"":
+            continue
+        groupes.setdefault(v, []).append(el)
+    resultat = []
+    for v, els in groupes.items():
+        if len(els) < 2:
+            continue
+        resultat.append(OrderedDict([
+            (u"valeur", v),
+            (u"nombre", len(els)),
+            (u"elements", [OrderedDict([(u"id", e.get(u"id")),
+                                        (u"nom", e.get(u"nom")),
+                                        (u"famille", e.get(u"famille"))])
+                           for e in els]),
+        ]))
+    return resultat
+
+
 def bilan(photo):
     """Comptes par rubrique et liste des signalements.
 
@@ -327,6 +359,20 @@ def bilan(photo):
             (u"nombre_elements",), False)
     compter(u"liens", photo.get(u"liens", []),
             (u"type", u"epingle"), False)
+    for rubrique, champs in IDENTIFIANTS_UNIQUES.items():
+        elements = photo.get(rubrique, [])
+        for champ in champs:
+            groupes = doublons(elements, champ)
+            comptes[rubrique][u"doublons_" + champ] = groupes
+            for g in groupes:
+                quoi = u", ".join(
+                    u"{0} (id {1})".format(e[u"famille"] or e[u"nom"],
+                                            e[u"id"])
+                    for e in g[u"elements"])
+                signalements.append(
+                    u"{0} : `{1}` EN DOUBLE - {2} sur {3} elements : {4}"
+                    .format(rubrique, champ, g[u"valeur"], g[u"nombre"],
+                            quoi))
     return comptes, signalements
 
 
