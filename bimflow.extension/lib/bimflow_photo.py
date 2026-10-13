@@ -3,21 +3,23 @@
 
 Le bouton (Dev.panel\\PhotoMaquette.pushbutton) lit la maquette ; tout ce qui
 ne demande pas Revit vit ici et se teste sous CPython (tests\\
-test_bimflow_photo.py) : lecture du socle de parametres, configuration du
-dossier de sortie, nom du fichier, orientation des quadrillages, choix du
-sens de la transformation interne -> partage, et bilan par rubrique.
+test_bimflow_photo.py) : lecture du socle de parametres, rappel du dernier
+dossier de sortie, nom du fichier, date ISO, orientation des quadrillages,
+choix du sens de la transformation interne -> partage, bilan par rubrique,
+echappement Markdown du rapport et ecriture atomique du JSON.
 
 Ce module n'importe ni Autodesk, ni clr, ni pyrevit.
 
 STANDARD, PAS INSTANCE. Aucune valeur d'affaire ici : le dossier de sortie
-vient d'un fichier de configuration du poste, les GUID viennent du socle
+est choisi a chaque clic (le dernier est rappele depuis un fichier du
+poste), les GUID viennent du socle
 versionne (shared_parameters\\keovia_socle_parametres.txt), lus par NOM. Le
 bouton ne connait que des noms de parametres du socle.
 
 Syntaxe IronPython 3.4 : pas de f-string, pas d'annotation, pas de pathlib,
 OrderedDict des que l'ordre compte.
 
-bimflow - Keovia Solutions inc. - 2026-10-12
+bimflow - Keovia Solutions inc. - 2026-10-12, revu le 2026-10-13
 """
 
 import io
@@ -114,7 +116,7 @@ def chemin_socle(dossier_lib):
 
 
 # --------------------------------------------------------------------------
-# Configuration du dossier de sortie - un fichier par poste, hors depot
+# Rappel du dernier dossier de sortie - un fichier par poste, hors depot
 # --------------------------------------------------------------------------
 
 CLE_DOSSIER = u"dossier_sortie"
@@ -193,6 +195,21 @@ def nom_fichier(titre, instant):
         base = base[:-4]
     base = _INTERDIT_FICHIER.sub(u"_", base).strip(u"._") or u"sans_titre"
     return u"{0}_{1}.json".format(base, instant.strftime(u"%Y-%m-%d_%H%M"))
+
+
+def decalage_minutes(local, utc):
+    """Decalage local - UTC en minutes, arrondi, depuis deux instants lus
+    l'un apres l'autre (datetime.now(), datetime.utcnow())."""
+    return int(round((local - utc).total_seconds() / 60.0))
+
+
+def date_iso(instant, decalage):
+    """AAAA-MM-JJTHH:MM:SS+HH:MM - instant local et son decalage UTC en
+    minutes (ex. 2026-10-13T00:40:12-04:00)."""
+    signe = u"-" if decalage < 0 else u"+"
+    h, m = divmod(abs(decalage), 60)
+    return u"{0}{1}{2:02d}:{3:02d}".format(
+        instant.strftime(u"%Y-%m-%dT%H:%M:%S"), signe, h, m)
 
 
 def chemin_libre(dossier, nom, existe=os.path.exists):
@@ -282,6 +299,17 @@ def _champs_nuls(enregistrement, champs):
 IDENTIFIANTS_UNIQUES = OrderedDict([(u"volumes", (u"REF_Id",))])
 
 
+# Champs qui designent un element dans la liste des doublons : ceux que
+# l'element porte. Un volume a `nom_type` (nom du TYPE, ex. « Volume
+# Ivion ») et `famille` (nom porteur de sens) ; les autres rubriques `nom`.
+_IDENTIFICATION = (u"id", u"nom", u"nom_type", u"famille")
+
+
+def designation(el):
+    """Nom le plus parlant d'un element : famille, puis nom_type, puis nom."""
+    return el.get(u"famille") or el.get(u"nom_type") or el.get(u"nom")
+
+
 def _porteur(el, champ):
     p = el.get(u"parametres", {}).get(champ)
     return p.get(u"porteur") if p else None
@@ -313,10 +341,8 @@ def controle_unicite(elements, champ):
         resultat.append(OrderedDict([
             (u"valeur", els[0].get(champ)),
             (u"nombre", len(els)),
-            (u"elements", [OrderedDict([(u"id", e.get(u"id")),
-                                        (u"nom", e.get(u"nom")),
-                                        (u"famille", e.get(u"famille"))])
-                           for e in els]),
+            (u"elements", [OrderedDict((k, e.get(k)) for k in _IDENTIFICATION
+                                       if k in e) for e in els]),
         ]))
     return OrderedDict([
         (u"valeurs_controlees", sum(len(e) for e in groupes.values())),
@@ -400,8 +426,7 @@ def bilan(photo):
                         rubrique, champ, ctrl[u"portees_par_type"]))
             for g in ctrl[u"doublons"]:
                 quoi = u", ".join(
-                    u"`{0}` (id {1})".format(e[u"famille"] or e[u"nom"],
-                                              e[u"id"])
+                    u"`{0}` (id {1})".format(designation(e), e[u"id"])
                     for e in g[u"elements"])
                 signalements.append(
                     u"{0} : `{1}` EN DOUBLE - {2} sur {3} elements : {4}"
@@ -410,9 +435,51 @@ def bilan(photo):
     return comptes, signalements
 
 
-def ecrire_json(chemin, donnees):
-    """JSON UTF-8 sans BOM, ecrit en une fois."""
-    texte = json.dumps(donnees, ensure_ascii=False, indent=2)
-    with io.open(chemin, "w", encoding="utf-8") as f:
-        f.write(texte)
-        f.write(u"\n")
+# --------------------------------------------------------------------------
+# Rapport a l'ecran : texte de la maquette rendu inerte pour le Markdown
+# --------------------------------------------------------------------------
+
+# Caracteres que le Markdown de la fenetre pyRevit (print_md, print_table)
+# interprete. Un nom de famille VOL_090__SC__... y perd ses « __ » (gras),
+# meme entre backticks (constat du 2026-10-13). Chacun devient une entite
+# HTML numerique : elle s'affiche telle quelle quel que soit le moteur
+# Markdown, et ne coupe pas une cellule de tableau. Ne JAMAIS mettre le
+# resultat entre backticks : dans du code, l'entite s'afficherait brute.
+_MD_SPECIAUX = u"\\`*_{}[]()#+-.!|<>&~"
+
+
+def echapper_md(valeur):
+    """Texte venu de la maquette, pret pour print_md / print_table.
+
+    None -> chaine vide. Le JSON n'est jamais echappe : seul l'affichage."""
+    if valeur is None:
+        return u""
+    texte = valeur if isinstance(valeur, type(u"")) else u"{0}".format(valeur)
+    return u"".join(u"&#{0};".format(ord(c)) if c in _MD_SPECIAUX else c
+                    for c in texte)
+
+
+# --------------------------------------------------------------------------
+# Ecriture du JSON - atomique
+# --------------------------------------------------------------------------
+
+
+def ecrire_json(chemin, donnees, renommer=os.rename):
+    """JSON UTF-8 sans BOM, ecrit ATOMIQUEMENT : un fichier temporaire du
+    meme dossier, puis renomme. En cas d'echec, le temporaire est retire et
+    aucun fichier partiel ne reste. os.rename refuse d'ecraser une cible
+    existante sous Windows : une photo precedente reste intacte."""
+    texte = json.dumps(donnees, ensure_ascii=False, indent=2) + u"\n"
+    dossier, nom = os.path.split(chemin)
+    temporaire = chemin_libre(dossier, u"{0}.tmp".format(nom))
+    try:
+        with io.open(temporaire, "w", encoding="utf-8") as f:
+            f.write(texte)
+        renommer(temporaire, chemin)
+    except Exception:
+        try:
+            if os.path.exists(temporaire):
+                os.remove(temporaire)
+        except Exception:
+            pass
+        raise

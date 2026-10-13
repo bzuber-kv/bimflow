@@ -2,25 +2,32 @@
 """BLEU - lecture seule : aucune transaction, rien n'est ecrit dans la
 maquette. La seule ecriture est le fichier JSON, hors du modele.
 
-Photo maquette - etat du modele actif a un instant, en un fichier JSON :
-  en-tete ...... modele, chemin, date, version de Revit, utilisateur, etat
-                 collaboratif, transformation interne -> partage retenue ;
+Photo maquette - etat du modele actif a un instant, en un fichier JSON,
+pour comparer deux etats, rejouer un controle hors Revit, documenter une
+livraison. Reference : docs\\photo_maquette.md (contenu du JSON champ par
+champ, regles de lecture, reperes, recette, historique).
+  en_tete ...... modele, chemin, date ISO avec fuseau, Revit, utilisateurs,
+                 etat collaboratif (copie locale lue), sous-projets fermes,
+                 reperes et transformation interne -> partage retenue ;
   niveaux ...... nom, Id, elevation (mm) par rapport au point de base du
                  projet, REF_Batiment, REF_Etage ;
   quadrillages . nom exact, Id, extremites en coordonnees PARTAGEES (m),
                  orientation (deg), type ;
-  volumes ...... (categorie Volumes) nom, famille, Id, REF_Zone, REF_Etage,
-                 REF_Batiment, CLS_Nature_volume, REF_Id, boite englobante ;
+  volumes ...... (categorie Volumes) nom_type, famille, Id, REF_Zone,
+                 REF_Etage, REF_Batiment, CLS_Nature_volume, REF_Id,
+                 boite englobante ;
   pieces ....... numero, nom, niveau, surface, point de localisation ;
   sous_projets . nom, nombre d'elements ;
-  liens ........ nom, type, epingle ou non.
+  liens ........ nom, type, epingle ou non ;
+  comptes, signalements : bilan, dont l'unicite de REF_Id.
 
 #############################################################################
-# STATUT : A TOURNE le 2026-10-12 (version 2026-10-12a) sur thestudy_G_AN   #
-# et thestudy_G_VL, maquettes collaboratives cloud : sans erreur, residu de #
-# la transformation 0,000 mm. NON EPROUVE depuis : boite de dossier a       #
-# chaque clic et controle d'unicite (2026-10-12b/c). Recette : section 7 de #
-# docs\\photo_maquette.md.                                                  #
+# STATUT : version 2026-10-12a A TOURNE le 2026-10-12 sur thestudy_G_AN et #
+# thestudy_G_VL (residu de la transformation 0,000 mm) ; version           #
+# 2026-10-12c A TOURNE le 2026-10-13 sur thestudy_G_VL (boite de dossier,  #
+# section Unicite, en-tete copie locale). NON EPROUVE : version 2026-10-13a #
+# (echappement Markdown, nom_type, boite ouverte sur le dernier dossier,   #
+# ecriture atomique, date avec fuseau). Recette : docs\\photo_maquette.md.  #
 #############################################################################
 
 RIEN N'EST DEDUIT D'UN NOM. Les parametres REF_ / CLS_ sont lus par GUID,
@@ -32,11 +39,12 @@ NON_LU. Les trois cas sont distingues dans le JSON (statut) et comptes au
 rapport.
 
 SORTIE. Le dossier est demande a CHAQUE execution (decision Bruno du
-2026-10-12). Le dernier choisi est rappele dans le titre de la boite, lu
-dans %APPDATA%\\bimflow\\photo_maquette.json - un simple rappel, jamais
-utilise sans etre choisi. Annuler la boite : rien n'est ecrit. Le fichier
-s'appelle <modele>_<AAAA-MM-JJ_HHMM>.json et n'ecrase jamais une photo
-precedente. Le chemin complet s'affiche en fin de rapport.
+2026-10-12). La boite s'ouvre sur le dernier dossier choisi, lu dans
+%APPDATA%\\bimflow\\photo_maquette.json - jamais utilise sans etre valide.
+Annuler la boite : rien n'est ecrit. Le fichier s'appelle
+<modele>_<AAAA-MM-JJ_HHMM>.json, n'ecrase jamais une photo precedente et
+s'ecrit atomiquement (temporaire du meme dossier, puis renomme : aucun
+fichier partiel en cas d'echec). Le chemin s'affiche en fin de rapport.
 
 REPERES.
   - elevation_pbp_mm = Level.ProjectElevation - Z interne du point de base
@@ -51,7 +59,7 @@ REPERES.
   - Orientation d'un quadrillage : azimut de la ligne debut -> fin dans le
     repere partage, 0 = nord partage, sens horaire, en degres [0, 360).
     direction_deg la ramene dans [0, 180). Un quadrillage en arc n'a pas
-    d'orientation (null, courbe = "arc").
+    d'orientation (null, courbe = arc).
   - Boites englobantes et points de pieces : coordonnees INTERNES du
     modele, en mm (repere de la geometrie) ; le point de piece est aussi
     publie en partage, en m.
@@ -66,14 +74,18 @@ SOUS-PROJETS FERMES. Leurs elements ne sont pas charges : ils manquent a
 TOUS les comptes. Ils sont detectes et annonces avant tout chiffre, et leur
 nombre d'elements vaut null.
 
-bimflow - Keovia Solutions inc. - 2026-10-12 (a : premiere version ;
-b : dossier a chaque clic, doublons ; c : corrections de la relecture)
+RAPPORT. Tout texte venu de la maquette est echappe pour le Markdown de la
+fenetre pyRevit (photo.echapper_md) ; le JSON ne l'est jamais.
+
+bimflow - Keovia Solutions inc. - versions : 2026-10-12a premiere version ;
+b dossier a chaque clic, doublons ; c corrections de relecture ;
+2026-10-13a finition (historique : docs\\photo_maquette.md §10).
 """
 
 __title__ = "Photo\nmaquette"
 __author__ = "Keovia Solutions inc."
 
-VERSION = u"2026-10-12c"
+VERSION = u"2026-10-13a"
 
 # Ecart admis entre la position partagee annoncee par Revit et celle que la
 # transformation calcule, sur les points de controle, en mm.
@@ -254,12 +266,17 @@ if collaboratif:
     except Exception as err:
         signaler(u"Etat des sous-projets ILLISIBLE : {0}".format(err))
 
-sortie.print_md(u"# Photo maquette - {0}".format(doc.Title))
+# Tout texte venu de la maquette passe par md() avant print_md / print_table
+# (echappement Markdown, sans backticks autour) ; le JSON, lui, n'est jamais
+# echappe.
+md = photo.echapper_md
+
+sortie.print_md(u"# Photo maquette - {0}".format(md(doc.Title)))
 if fermes:
     sortie.print_md(
         u"**ATTENTION - {0} sous-projet(s) ferme(s)** : leurs elements ne sont "
         u"pas charges et MANQUENT a tous les comptes ci-dessous : {1}".format(
-            len(fermes), u", ".join(fermes)))
+            len(fermes), u", ".join(md(f) for f in fermes)))
     signaler(u"{0} sous-projet(s) ferme(s), elements absents de la photo : "
              u"{1}".format(len(fermes), u", ".join(fermes)))
 if non_detachee:
@@ -467,7 +484,10 @@ for eid in ids(FilteredElementCollector(doc)
     el = doc.GetElement(eid)
     if el is None:
         continue
-    v = OrderedDict([("nom", nom_de(el)), ("id", id_de(eid))])
+    # nom_type : Element.Name d'un volume in situ est le nom de son TYPE
+    # (ex. « Volume Ivion », recette du 2026-10-12) ; le nom porteur de
+    # sens est `famille`.
+    v = OrderedDict([("nom_type", nom_de(el)), ("id", id_de(eid))])
     famille = None
     try:
         famille = el.Symbol.Family.Name
@@ -487,7 +507,7 @@ for eid in ids(FilteredElementCollector(doc)
     v["boite_mm"] = boite
     v["parametres"] = params
     volumes.append(v)
-volumes.sort(key=lambda v: (v["famille"] or u"", v["nom"] or u""))
+volumes.sort(key=lambda v: (v["famille"] or u"", v["nom_type"] or u""))
 
 # --------------------------------------------------------------------------
 # 6. Pieces
@@ -624,6 +644,7 @@ liens.sort(key=lambda l: (l["type"], l["nom"] or u""))
 # --------------------------------------------------------------------------
 
 maintenant = datetime.datetime.now()
+decalage = photo.decalage_minutes(maintenant, datetime.datetime.utcnow())
 utilisateur_windows = None
 try:
     utilisateur_windows = System.Environment.UserName
@@ -635,7 +656,7 @@ en_tete = OrderedDict([
     ("version_outil", VERSION),
     ("modele", doc.Title),
     ("chemin", doc.PathName or None),
-    ("date", maintenant.strftime(u"%Y-%m-%dT%H:%M:%S")),
+    ("date", photo.date_iso(maintenant, decalage)),
     ("revit_version", u"{0}".format(app.VersionNumber)),
     ("revit_build", u"{0}".format(app.VersionBuild)),
     ("utilisateur_revit", app.Username or None),
@@ -689,14 +710,54 @@ donnees["signalements"] = signalements + sig_bilan
 # Le dossier est DEMANDE A CHAQUE EXECUTION (decision Bruno, 2026-10-12) :
 # une photo se range dans l'affaire de la maquette, et un dossier retenu
 # d'une fois sur l'autre finirait par ranger une maquette dans la mauvaise
-# affaire. Le dernier dossier choisi n'est qu'un RAPPEL, affiche dans le
-# titre de la boite ; il n'est jamais utilise sans qu'on le choisisse.
+# affaire. La boite s'OUVRE sur le dernier dossier choisi ; il n'est jamais
+# utilise sans qu'on le valide.
+#
+# forms.pick_folder (pyRevit 6.5.5) n'accepte que title et owner, pas de
+# dossier initial (lu dans pyrevitlib\pyrevit\forms\_ipy.py le 2026-10-13).
+# D'ou FolderBrowserDialog, ouvert sur le dernier dossier (SelectedPath ;
+# InitialDirectory et UseDescriptionForTitle si le .NET les a). Si la boite
+# Windows echoue, repli sur pick_folder, sans dossier initial.
+
+
+def choisir_dossier(titre, initial):
+    """(dossier choisi ou None si annule, motif du repli ou None)."""
+    dlg = None
+    try:
+        import clr
+        clr.AddReference("System.Windows.Forms")
+        from System.Windows.Forms import DialogResult, FolderBrowserDialog
+        dlg = FolderBrowserDialog()
+        dlg.Description = titre
+        dlg.ShowNewFolderButton = True
+        try:
+            dlg.UseDescriptionForTitle = True
+        except Exception:
+            pass
+        if initial and os.path.isdir(initial):
+            dlg.SelectedPath = initial
+            try:
+                dlg.InitialDirectory = initial
+            except Exception:
+                pass
+        if dlg.ShowDialog() == DialogResult.OK and dlg.SelectedPath:
+            return dlg.SelectedPath, None
+        return None, None
+    except Exception as err:
+        motif = u"boite Windows en echec ({0}), repli pyRevit".format(err)
+    finally:
+        if dlg is not None:
+            try:
+                dlg.Dispose()
+            except Exception:
+                pass
+    return forms.pick_folder(title=titre), motif
+
+
 fichier_memo = photo.chemin_config()
 dernier = photo.lire_config(fichier_memo)[0]
 titre = u"Photo maquette - {0} - dossier de sortie".format(doc.Title)
-if dernier:
-    titre = u"{0} (dernier : {1})".format(titre, dernier)
-dossier = forms.pick_folder(title=titre)
+dossier, repli_boite = choisir_dossier(titre, dernier)
 
 chemin_json = None
 echec_ecriture = None
@@ -713,7 +774,7 @@ if dossier:
             photo.ecrire_config(fichier_memo, dossier)
         except Exception as err:
             sortie.print_md(u"*Rappel du dernier dossier non enregistre "
-                            u"({0}).*".format(err))
+                            u"({0}).*".format(md(err)))
 
 # --------------------------------------------------------------------------
 # 11. Rapport
@@ -722,9 +783,10 @@ if dossier:
 sortie.print_md(u"## Comptes par rubrique")
 lignes = []
 for rubrique, r in comptes.items():
-    nuls = u", ".join(u"{0} : {1}".format(c, n)
+    # Noms de champs de l'outil, mais avec des « _ » : echappes aussi.
+    nuls = u", ".join(u"{0} : {1}".format(md(c), n)
                       for c, n in r[u"champs_nuls"].items()) or u"-"
-    lignes.append([rubrique, r[u"nombre"], nuls])
+    lignes.append([md(rubrique), r[u"nombre"], nuls])
 sortie.print_table(table_data=lignes,
                    columns=[u"Rubrique", u"Nombre", u"Champs null"])
 
@@ -734,14 +796,15 @@ for rubrique in (u"niveaux", u"volumes"):
         continue
     sortie.print_md(u"### Parametres - {0}".format(rubrique))
     sortie.print_table(
-        table_data=[[nom, s[photo.LU], s[photo.VIDE], s[photo.ABSENT],
+        table_data=[[md(nom), s[photo.LU], s[photo.VIDE], s[photo.ABSENT],
                      s[photo.ILLISIBLE]] for nom, s in stat.items()],
         columns=[u"Parametre", u"lu", u"vide", u"absent", u"NON_LU"])
 
 for rubrique, champs in photo.IDENTIFIANTS_UNIQUES.items():
     for champ in champs:
         ctrl = comptes[rubrique].get(u"unicite_" + champ)
-        sortie.print_md(u"### Unicite - `{0}` ({1})".format(champ, rubrique))
+        sortie.print_md(u"### Unicite - {0} ({1})".format(md(champ),
+                                                          rubrique))
         if not ctrl or not ctrl[u"valeurs_controlees"]:
             sortie.print_md(u"**Non controlee** : aucune valeur lue sur "
                             u"l'instance.")
@@ -752,9 +815,9 @@ for rubrique, champs in photo.IDENTIFIANTS_UNIQUES.items():
         if not groupes:
             continue
         sortie.print_table(
-            table_data=[[u"`{0}`".format(g[u"valeur"]), g[u"nombre"],
-                         u", ".join(u"`{0}` (id {1})".format(
-                             e[u"famille"] or e[u"nom"], e[u"id"])
+            table_data=[[md(g[u"valeur"]), g[u"nombre"],
+                         u", ".join(u"{0} (id {1})".format(
+                             md(photo.designation(e)), e[u"id"])
                              for e in g[u"elements"])] for g in groupes],
             columns=[u"Valeur", u"Elements", u"Qui"])
 
@@ -767,18 +830,23 @@ if pieces:
 
 sortie.print_md(u"## Signalements ({0})".format(len(donnees["signalements"])))
 if donnees["signalements"]:
+    # Un signalement melange texte de l'outil et noms de la maquette : il
+    # est affiche entier, echappe, tel qu'il est ecrit dans le JSON.
     for s in donnees["signalements"]:
-        sortie.print_md(u"- {0}".format(s))
+        sortie.print_md(u"- {0}".format(md(s)))
 else:
     sortie.print_md(u"Aucun.")
 
 sortie.print_md(u"## Sortie")
+if repli_boite:
+    sortie.print_md(u"*{0}.*".format(md(repli_boite)))
 if not dossier:
     sortie.print_md(u"**Aucun fichier ecrit** : boite de dossier annulee.")
 elif echec_ecriture is not None:
-    sortie.print_md(u"**ECHEC de l'ecriture du JSON** dans `{0}` : {1}".format(
-        chemin_json, echec_ecriture))
+    sortie.print_md(u"**ECHEC de l'ecriture du JSON** dans {0} : {1} - aucun "
+                    u"fichier partiel laisse.".format(md(chemin_json),
+                                                      md(echec_ecriture)))
 else:
-    sortie.print_md(u"JSON : `{0}`".format(chemin_json))
+    sortie.print_md(u"JSON : {0}".format(md(chemin_json)))
 sortie.print_md(u"*Lecture seule - aucune transaction ouverte. {0}*".format(
     VERSION))
