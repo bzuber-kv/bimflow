@@ -219,24 +219,64 @@ def test_bouton_icone_96_argb():
 
 def test_bouton_demande_toujours_le_dossier():
     code = _code("script.py")
+    # la boite est ouverte sans condition : l'appel est au niveau du module
+    appels = [l for l in code.splitlines() if "choisir_dossier(" in l
+              and not l.startswith("def ")]
+    assert len(appels) == 1 and not appels[0].startswith(" ")
+    # pick_folder ne sert plus que de repli, dans choisir_dossier
     assert code.count("forms.pick_folder(") == 1
-    # le choix ne depend d'aucune condition : l'appel est au niveau du module
-    ligne = [l for l in code.splitlines() if "forms.pick_folder(" in l][0]
-    assert not ligne.startswith(" ")
+    assert "dlg.SelectedPath = initial" in code
     assert not os.path.exists(os.path.join(BOUTON, "config.py"))
 
 
+def _appels(code, fonction):
+    """Texte de chaque appel `fonction(...)`, parentheses equilibrees."""
+    res = []
+    i = code.find(fonction + "(")
+    while i >= 0:
+        j = i + len(fonction)
+        prof = 0
+        while True:
+            prof += {"(": 1, ")": -1}.get(code[j], 0)
+            j += 1
+            if prof == 0:
+                break
+        res.append(code[i:j])
+        i = code.find(fonction + "(", j)
+    return res
+
+
+def test_bouton_n_affiche_pas_de_texte_entre_backticks():
+    # un texte formate entre backticks s'afficherait mal : dans du code, les
+    # entites d'echapper_md restent brutes. Les signalements, eux, gardent
+    # leurs backticks dans le JSON et sont echappes en entier a l'affichage.
+    code = _code("script.py")
+    appels = _appels(code, "sortie.print_md") + _appels(code,
+                                                         "sortie.print_table")
+    assert len(appels) > 10
+    for a in appels:
+        assert "`{" not in a, a
+
+
+def test_bouton_volumes_publient_nom_type():
+    code = _code("script.py")
+    assert '("nom_type", nom_de(el))' in code
+
+
+def _v(i, famille, ref, nom_type="Volume Ivion"):
+    return OrderedDict([("id", i), ("nom_type", nom_type), ("famille", famille),
+                        ("REF_Id", ref)])
+
+
 def test_doublons_ref_id():
-    v = [OrderedDict([("id", 1), ("nom", "Volume Ivion"), ("famille", "VOL_090"), ("REF_Id", "a")]),
-         OrderedDict([("id", 2), ("nom", "Volume Ivion"), ("famille", "VOL_091"), ("REF_Id", "a")]),
-         OrderedDict([("id", 3), ("nom", "Volume Ivion"), ("famille", "VOL_092"), ("REF_Id", "b")]),
-         OrderedDict([("id", 4), ("nom", "Volume 1"), ("famille", "Volume 1"), ("REF_Id", None)]),
-         OrderedDict([("id", 5), ("nom", "Volume 2"), ("famille", "Volume 2"), ("REF_Id", None)]),
-         OrderedDict([("id", 6), ("nom", "x"), ("famille", "x"), ("REF_Id", ph.NON_LU)]),
-         OrderedDict([("id", 7), ("nom", "y"), ("famille", "y"), ("REF_Id", ph.NON_LU)])]
+    v = [_v(1, "VOL_090", "a"), _v(2, "VOL_091", "a"), _v(3, "VOL_092", "b"),
+         _v(4, "Volume 1", None, "Volume 1"), _v(5, "Volume 2", None, "Volume 2"),
+         _v(6, "x", ph.NON_LU, "x"), _v(7, "y", ph.NON_LU, "y")]
     g = ph.doublons(v, "REF_Id")
     assert len(g) == 1 and g[0]["valeur"] == "a" and g[0]["nombre"] == 2
     assert [e["id"] for e in g[0]["elements"]] == [1, 2]
+    assert g[0]["elements"][0] == OrderedDict(
+        [("id", 1), ("nom_type", "Volume Ivion"), ("famille", "VOL_090")])
     comptes, sig = ph.bilan(OrderedDict([("volumes", v)]))
     assert comptes["volumes"]["unicite_REF_Id"]["doublons"] == g
     assert comptes["volumes"]["unicite_REF_Id"]["valeurs_controlees"] == 3
@@ -251,7 +291,7 @@ def test_aucun_doublon_liste_vide():
 
 
 def _vol(i, v, porteur="instance"):
-    return OrderedDict([("id", i), ("nom", "Volume Ivion"), ("famille", "F%d" % i),
+    return OrderedDict([("id", i), ("nom_type", "Volume Ivion"), ("famille", "F%d" % i),
                         ("REF_Id", v), ("parametres", OrderedDict([
                             ("REF_Id", OrderedDict([("valeur", v), ("statut", "lu"),
                                                     ("porteur", porteur)]))]))])
@@ -283,3 +323,97 @@ def test_famille_non_lue_signalee():
     v = [OrderedDict([("id", 1), ("famille", ph.NON_LU), ("boite_mm", {})])]
     comptes, sig = ph.bilan(OrderedDict([("volumes", v)]))
     assert comptes["volumes"]["champs_nuls"] == OrderedDict([("famille (NON_LU)", 1)])
+
+
+def test_designation_famille_puis_nom_type_puis_nom():
+    assert ph.designation({"famille": "VOL_1", "nom_type": "T"}) == "VOL_1"
+    assert ph.designation({"famille": None, "nom_type": "T"}) == "T"
+    assert ph.designation({"nom": "Axe A"}) == "Axe A"
+
+
+def test_doublon_sans_famille_designe_par_nom_type():
+    v = [_v(1, None, "a", "T1"), _v(2, None, "a", "T2")]
+    comptes, sig = ph.bilan(OrderedDict([("volumes", v)]))
+    assert any("`T1` (id 1)" in s and "`T2` (id 2)" in s for s in sig)
+
+
+# --- echappement Markdown du rapport ------------------------------------------
+
+def test_echapper_md_rend_les_speciaux_inertes():
+    s = ph.echapper_md(u"VOL_090__SC_Bp_Amg_1p_3p__FLOOR_2__ETAGE")
+    assert "_" not in s and s.count("&#95;") == 12
+    brut = u"a\\b`c*d_e[f]g#h|i<j>k&l"
+    e = ph.echapper_md(brut)
+    reste = re.sub(r"&#\d+;", "", e)
+    assert reste == u"abcdefghijkl"
+    # aucune perte : le texte se relit a l'identique une fois les entites
+    # decodees
+    import html
+    assert html.unescape(e) == brut
+
+
+def test_echapper_md_ne_touche_pas_au_texte_ordinaire():
+    assert ph.echapper_md(u"Étage 2 : 23 niveaux") == u"Étage 2 : 23 niveaux"
+    assert ph.echapper_md(None) == u""
+    assert ph.echapper_md(5530844) == u"5530844"
+
+
+def test_le_json_n_est_pas_echappe():
+    v = [_v(1, "VOL_090__A", "a"), _v(2, "VOL_091__B", "a")]
+    comptes, sig = ph.bilan(OrderedDict([("volumes", v)]))
+    assert comptes["volumes"]["unicite_REF_Id"]["doublons"][0]["elements"][0][
+        "famille"] == "VOL_090__A"
+    assert any("VOL_090__A" in s for s in sig)
+    assert not any("&#" in s for s in sig)
+
+
+# --- date ISO avec fuseau ----------------------------------------------------
+
+def test_date_iso_avec_fuseau():
+    t = datetime.datetime(2026, 10, 13, 0, 40, 12)
+    assert ph.date_iso(t, -240) == u"2026-10-13T00:40:12-04:00"
+    assert ph.date_iso(t, 0) == u"2026-10-13T00:40:12+00:00"
+    assert ph.date_iso(t, 330) == u"2026-10-13T00:40:12+05:30"
+    assert ph.date_iso(t, -570) == u"2026-10-13T00:40:12-09:30"
+
+
+def test_decalage_minutes_arrondi():
+    local = datetime.datetime(2026, 10, 13, 0, 40, 12, 900)
+    utc = datetime.datetime(2026, 10, 13, 4, 40, 12, 400)
+    assert ph.decalage_minutes(local, utc) == -240
+
+
+# --- ecriture atomique -------------------------------------------------------
+
+def test_ecrire_json_ne_laisse_que_le_fichier(tmp_path):
+    f = str(tmp_path / "p.json")
+    ph.ecrire_json(f, OrderedDict([("a", 1)]))
+    assert os.listdir(str(tmp_path)) == ["p.json"]
+
+
+def test_ecrire_json_echec_au_renommage_ne_laisse_rien(tmp_path):
+    f = str(tmp_path / "p.json")
+
+    def casse(a, b):
+        raise OSError("disque plein")
+
+    with pytest.raises(OSError):
+        ph.ecrire_json(f, OrderedDict([("a", 1)]), renommer=casse)
+    assert os.listdir(str(tmp_path)) == []
+
+
+def test_ecrire_json_donnees_invalides_ne_laisse_rien(tmp_path):
+    f = str(tmp_path / "p.json")
+    with pytest.raises(TypeError):
+        ph.ecrire_json(f, OrderedDict([("a", object())]))
+    assert os.listdir(str(tmp_path)) == []
+
+
+def test_ecrire_json_n_ecrase_pas_une_photo(tmp_path):
+    f = tmp_path / "p.json"
+    f.write_text(u"ancienne", encoding="utf-8")
+    if os.name == "nt":
+        with pytest.raises(OSError):
+            ph.ecrire_json(str(f), OrderedDict([("a", 1)]))
+        assert f.read_text(encoding="utf-8") == u"ancienne"
+        assert os.listdir(str(tmp_path)) == ["p.json"]
