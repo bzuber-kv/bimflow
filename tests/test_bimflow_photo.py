@@ -194,7 +194,6 @@ def test_bouton_lecture_seule(fichier):
                      "SynchronizeWithCentral", "CheckoutElements",
                      ".IntegerValue", "script.exit"):
         if interdit == ".IntegerValue":
-            # seule exception admise : WorksetId.IntegerValue
             # seule exception admise : WorksetId (w.Id).IntegerValue
             assert set(re.findall(r"([\w.]+)\.IntegerValue",
                                   sans_commentaires)) <= set(["w.Id"])

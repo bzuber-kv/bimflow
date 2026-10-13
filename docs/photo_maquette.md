@@ -104,9 +104,9 @@ VOL_090 / VOL_091 (2026-10-12).
 ## 7. Recette
 
 Première exécution le **2026-10-12**, version `2026-10-12a`, Revit 2026
-(26.4.0.32), maquettes **centrales** cloud de The Study, aucun sous-projet
-fermé. Portée des comptes : **spécifique The Study** ; portée des constats
-sur l'outil : générique.
+(26.4.0.32), maquettes **collaboratives cloud, copie locale lue**, de The
+Study, aucun sous-projet fermé. Portée des comptes : **spécifique The
+Study** ; portée des constats sur l'outil : générique.
 
 | Maquette | Heure | Niveaux | Quadrillages | Volumes | Pièces | Sous-projets | Liens | Résidu transformation | Signalements |
 |---|---|---|---|---|---|---|---|---|---|
@@ -151,7 +151,8 @@ sur l'outil : générique.
    le champ `nom_type`.
 2. ~~Doublons de `REF_Id`~~ — **fait** (version `2026-10-12b`) : comptés
    au bilan, listés au rapport (section « Unicité ») et dans le JSON
-   (`comptes.volumes.unicite_REF_Id`). Rejoué sur la photo de G_VL : trouve
+   (`comptes.volumes.unicite_REF_Id`). Rejoué hors dépôt sur
+   `thestudy_G_VL_2026-10-12_1659.json` (photo du 2026-10-12 16:59) : trouve
    VOL_090 / VOL_091. Rien n'est corrigé, l'original n'est pas désigné.
 3. Les deux JSON ont été écrits dans `Downloads`, pas dans `maquette_photo`.
 

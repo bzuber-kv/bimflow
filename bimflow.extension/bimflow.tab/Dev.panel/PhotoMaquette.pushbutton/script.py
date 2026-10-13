@@ -34,9 +34,9 @@ rapport.
 SORTIE. Le dossier est demande a CHAQUE execution (decision Bruno du
 2026-10-12). Le dernier choisi est rappele dans le titre de la boite, lu
 dans %APPDATA%\\bimflow\\photo_maquette.json - un simple rappel, jamais
-utilise sans etre choisi. Annuler la boite : rien n'est ecrit. Le fichier s'appelle
-<modele>_<AAAA-MM-JJ_HHMM>.json et n'ecrase jamais une photo precedente.
-Le chemin complet s'affiche en fin de rapport.
+utilise sans etre choisi. Annuler la boite : rien n'est ecrit. Le fichier
+s'appelle <modele>_<AAAA-MM-JJ_HHMM>.json et n'ecrase jamais une photo
+precedente. Le chemin complet s'affiche en fin de rapport.
 
 REPERES.
   - elevation_pbp_mm = Level.ProjectElevation - Z interne du point de base
@@ -692,7 +692,7 @@ donnees["signalements"] = signalements + sig_bilan
 # affaire. Le dernier dossier choisi n'est qu'un RAPPEL, affiche dans le
 # titre de la boite ; il n'est jamais utilise sans qu'on le choisisse.
 fichier_memo = photo.chemin_config()
-dernier, brut, motif = photo.lire_config(fichier_memo)
+dernier = photo.lire_config(fichier_memo)[0]
 titre = u"Photo maquette - {0} - dossier de sortie".format(doc.Title)
 if dernier:
     titre = u"{0} (dernier : {1})".format(titre, dernier)
