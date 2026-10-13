@@ -304,9 +304,10 @@ lue. Comptes relevés sur le rapport par Bruno :
 - **Défaut constaté** : à l'écran, les « __ » des noms de famille
   disparaissent, même entre backticks (table *Unicité* et signalements) ; le
   JSON est intact. Motif de la version `2026-10-13a` (§7).
-- *Hypothèse, non vérifiée* : les 2 niveaux à `REF_Etage` vide sont les deux
-  niveaux `Site` relevés au §9.1, et les 2 volumes vides sont `Volume 1` et
-  `Volume 2`.
+- *Mesuré* (source : `thestudy_G_VL_2026-10-13_0040.json`) : les 2 niveaux
+  à `REF_Etage` vide sont `EXT_BLVD` et `EXT_PARC`, les deux niveaux `Site`
+  déjà relevés au §9.1 ; les 2 volumes vides sont `Volume 1` (id 5532336) et
+  `Volume 2` (id 5530844), le chantier en cours du §9.1.
 
 ### 9.3 Version `2026-10-13a` — non éprouvée
 
