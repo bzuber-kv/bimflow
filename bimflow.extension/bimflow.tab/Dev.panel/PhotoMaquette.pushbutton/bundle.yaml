@@ -2,12 +2,13 @@ title: |-
   Photo
   maquette
 tooltip: >-
-  A tourné le 2026-10-12 (G_AN, G_VL, version a). NON ÉPROUVÉS : boîte
-  de dossier et contrôle d'unicité (versions b et c). Lecture seule —
-  aucune transaction.
-  Exporte l'état du modèle actif en un JSON : niveaux, quadrillages
-  (coordonnées partagées), volumes (REF_/CLS_ lus par GUID), pièces,
-  sous-projets, liens. Le dossier de sortie est demandé à chaque clic.
+  Lecture seule — aucune transaction. Exporte l'état du modèle actif en
+  un JSON : niveaux, quadrillages (coordonnées partagées), volumes
+  (REF_/CLS_ lus par GUID, contrôle d'unicité de REF_Id), pièces,
+  sous-projets, liens. Dossier de sortie demandé à chaque clic, boîte
+  ouverte sur le dernier choisi.
+  Versions a à c éprouvées (2026-10-12 et 2026-10-13) ; version
+  2026-10-13a NON ÉPROUVÉE.
   Doc : docs\photo_maquette.md
 author: Keovia Solutions inc.
 highlight: new
