@@ -50,12 +50,13 @@ Y est, et l'ordre d'emploi est celui-la :
     un JSON : niveaux, quadrillages en coordonnees partagees, volumes
     (REF_/CLS_ lus par GUID, controle d'unicite de REF_Id), pieces,
     sous-projets, liens. Dossier de sortie demande a chaque clic, boite
-    ouverte sur le dernier choisi. A TOURNE le 2026-10-12 sur G_AN et
-    G_VL (version a) et le 2026-10-13 sur G_VL (version c : boite de
-    dossier, section Unicite, en-tete copie locale). Version 2026-10-13a
-    (echappement Markdown, nom_type, ecriture atomique, date avec
-    fuseau) NON EPROUVEE. Panneau definitif propose : Calage projet
-    (B25). Doc : docs\photo_maquette.md
+    ouverte sur le dernier choisi. A TOURNE le 2026-10-13 sur G_AN et
+    G_VL (version 2026-10-13a : noms avec __ entiers, boite sur le
+    dernier dossier, nom_type, aucun .tmp, date avec fuseau) ; versions
+    precedentes eprouvees les 2026-10-12 et 2026-10-13. Version
+    2026-10-13b (message d'unicite sur maquette sans volume) NON
+    EPROUVEE. Panneau definitif propose : Calage projet (B25). Doc :
+    docs\photo_maquette.md
 
 Les trois premiers ont tourne : la regle de sortie leur est acquise, et leur
 panneau definitif reste a decider (B25). Ils restent ici en attendant cette

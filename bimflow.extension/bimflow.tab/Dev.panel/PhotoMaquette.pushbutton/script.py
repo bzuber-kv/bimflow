@@ -25,9 +25,12 @@ champ, regles de lecture, reperes, recette, historique).
 # STATUT : version 2026-10-12a A TOURNE le 2026-10-12 sur thestudy_G_AN et #
 # thestudy_G_VL (residu de la transformation 0,000 mm) ; version           #
 # 2026-10-12c A TOURNE le 2026-10-13 sur thestudy_G_VL (boite de dossier,  #
-# section Unicite, en-tete copie locale). NON EPROUVE : version 2026-10-13a #
-# (echappement Markdown, nom_type, boite ouverte sur le dernier dossier,   #
-# ecriture atomique, date avec fuseau). Recette : docs\\photo_maquette.md.  #
+# section Unicite, en-tete copie locale) ; version 2026-10-13a A TOURNE le #
+# 2026-10-13 sur thestudy_G_AN et thestudy_G_VL (noms avec __ entiers,     #
+# boite sur le dernier dossier, nom_type, aucun .tmp, date avec fuseau) -  #
+# repli pick_folder jamais declenche. NON EPROUVE : version 2026-10-13b    #
+# (message d'unicite sur maquette sans volume). Recette :                  #
+# docs\\photo_maquette.md §9.                                               #
 #############################################################################
 
 RIEN N'EST DEDUIT D'UN NOM. Les parametres REF_ / CLS_ sont lus par GUID,
@@ -79,13 +82,14 @@ fenetre pyRevit (photo.echapper_md) ; le JSON ne l'est jamais.
 
 bimflow - Keovia Solutions inc. - versions : 2026-10-12a premiere version ;
 b dossier a chaque clic, doublons ; c corrections de relecture ;
-2026-10-13a finition (historique : docs\\photo_maquette.md §10).
+2026-10-13a finition ; b message d'unicite sur maquette sans volume
+(historique : docs\\photo_maquette.md §10).
 """
 
 __title__ = "Photo\nmaquette"
 __author__ = "Keovia Solutions inc."
 
-VERSION = u"2026-10-13a"
+VERSION = u"2026-10-13b"
 
 # Ecart admis entre la position partagee annoncee par Revit et celle que la
 # transformation calcule, sur les points de controle, en mm.
@@ -805,13 +809,9 @@ for rubrique, champs in photo.IDENTIFIANTS_UNIQUES.items():
         ctrl = comptes[rubrique].get(u"unicite_" + champ)
         sortie.print_md(u"### Unicite - {0} ({1})".format(md(champ),
                                                           rubrique))
-        if not ctrl or not ctrl[u"valeurs_controlees"]:
-            sortie.print_md(u"**Non controlee** : aucune valeur lue sur "
-                            u"l'instance.")
-            continue
-        groupes = ctrl[u"doublons"]
-        sortie.print_md(u"{0} valeur(s) controlee(s), {1} en double.".format(
-            ctrl[u"valeurs_controlees"], len(groupes)))
+        sortie.print_md(photo.message_unicite(
+            rubrique, comptes[rubrique][u"nombre"], ctrl))
+        groupes = ctrl[u"doublons"] if ctrl else []
         if not groupes:
             continue
         sortie.print_table(

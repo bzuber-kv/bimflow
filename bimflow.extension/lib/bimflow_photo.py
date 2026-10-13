@@ -351,6 +351,24 @@ def controle_unicite(elements, champ):
     ])
 
 
+# Nom d'un element de la rubrique, au singulier, pour le rapport.
+_SINGULIER = {u"volumes": u"volume"}
+
+
+def message_unicite(rubrique, nombre, ctrl):
+    """Phrase de la section Unicite du rapport (Markdown).
+
+    Trois cas, jamais confondus : rubrique vide (rien a controler) ; aucune
+    valeur lue sur l'instance (non controlee) ; sinon, le compte."""
+    if not nombre:
+        return u"Rien a controler : aucun {0} dans la maquette.".format(
+            _SINGULIER.get(rubrique, rubrique))
+    if not ctrl or not ctrl[u"valeurs_controlees"]:
+        return u"**Non controlee** : aucune valeur lue sur l'instance."
+    return u"{0} valeur(s) controlee(s), {1} en double.".format(
+        ctrl[u"valeurs_controlees"], len(ctrl[u"doublons"]))
+
+
 def doublons(elements, champ):
     """Raccourci : la liste des doublons de controle_unicite."""
     return controle_unicite(elements, champ)[u"doublons"]

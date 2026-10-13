@@ -7,8 +7,8 @@ tooltip: >-
   (REF_/CLS_ lus par GUID, contrôle d'unicité de REF_Id), pièces,
   sous-projets, liens. Dossier de sortie demandé à chaque clic, boîte
   ouverte sur le dernier choisi.
-  Versions a à c éprouvées (2026-10-12 et 2026-10-13) ; version
-  2026-10-13a NON ÉPROUVÉE.
+  A tourné le 2026-10-13 (version 2026-10-13a) ; 2026-10-13b = message
+  d'unicité sur maquette sans volume, NON ÉPROUVÉ.
   Doc : docs\photo_maquette.md
 author: Keovia Solutions inc.
 highlight: new

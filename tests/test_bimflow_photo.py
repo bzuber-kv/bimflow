@@ -284,6 +284,27 @@ def test_doublons_ref_id():
                for s in sig)
 
 
+def test_message_unicite_rubrique_vide():
+    # maquette sans volume (cas G_AN, 2026-10-13) : rien a controler, ni
+    # « non controlee » a l'ecran, ni signalement
+    comptes, sig = ph.bilan(OrderedDict([("volumes", [])]))
+    m = ph.message_unicite("volumes", comptes["volumes"]["nombre"],
+                           comptes["volumes"]["unicite_REF_Id"])
+    assert m == u"Rien a controler : aucun volume dans la maquette."
+    assert "Non controlee" not in m
+    assert sig == []
+
+
+def test_message_unicite_non_controlee_et_compte():
+    v = [_vol(1, None), _vol(2, ph.NON_LU)]
+    ctrl = ph.controle_unicite(v, "REF_Id")
+    assert "Non controlee" in ph.message_unicite("volumes", 2, ctrl)
+    v = [_vol(1, "a"), _vol(2, "a"), _vol(3, "b")]
+    ctrl = ph.controle_unicite(v, "REF_Id")
+    assert ph.message_unicite("volumes", 3, ctrl) == \
+        u"3 valeur(s) controlee(s), 1 en double."
+
+
 def test_aucun_doublon_liste_vide():
     comptes, sig = ph.bilan(OrderedDict())
     assert comptes["volumes"]["unicite_REF_Id"]["doublons"] == []

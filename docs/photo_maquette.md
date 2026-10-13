@@ -1,9 +1,9 @@
 # Photo maquette — état du modèle actif en un JSON
 
-> Repo `bimflow` · portée : **générique** (standard Keovia) · créé le 2026-10-12 · mis à jour le 2026-10-13 (version `2026-10-13a`, passe de finition)
+> Repo `bimflow` · portée : **générique** (standard Keovia) · créé le 2026-10-12 · mis à jour le 2026-10-13 (version `2026-10-13b` : recette de `2026-10-13a`, message d'unicité sur maquette sans volume)
 > Bouton : `bimflow.tab\Dev.panel\PhotoMaquette.pushbutton` — **bleu, lecture seule**
 > Logique testable : `bimflow.extension\lib\bimflow_photo.py` · tests : `tests\test_bimflow_photo.py`
-> Statut : versions `a` à `c` **éprouvées** dans Revit (§9) ; version `2026-10-13a` **non éprouvée**.
+> Statut : versions `2026-10-12a` à `2026-10-13a` **éprouvées** dans Revit (§9) ; version `2026-10-13b` **non éprouvée** (§9.4).
 
 Les exemples tirés de The Study sont marqués *spécifique The Study* ; tout le
 reste vaut pour toute maquette.
@@ -175,7 +175,10 @@ Le bouton porte le contrôle (liste `IDENTIFIANTS_UNIQUES` de
   pas un doublon, elle est comptée à part (`portees_par_type`) et signalée ;
 - la comparaison ignore casse et blancs de bord ; la valeur publiée reste
   celle lue ;
-- aucune valeur contrôlée ⇒ « **non contrôlée** », jamais « aucun doublon » ;
+- rubrique vide (aucun volume dans la maquette) ⇒ « rien à contrôler », sans
+  signalement ;
+- volumes présents mais aucune valeur contrôlée ⇒ « **non contrôlée** »,
+  jamais « aucun doublon » ;
 - rien n'est corrigé et l'original n'est pas désigné : l'arbitrage et la
   correction relèvent d'un autre outil, à spécifier.
 
@@ -188,7 +191,8 @@ Dans l'ordre : titre (modèle) ; alerte si des sous-projets sont fermés ;
 mention « copie locale » pour une maquette collaborative ; tableau des comptes
 par rubrique (nombre, champs null) ; tableaux des statuts de paramètres
 (niveaux, volumes) ; section *Unicité* (valeurs contrôlées, doublons et qui les
-porte, ou « non contrôlée ») ; états des pièces ; signalements ; sortie
+porte ; ou « non contrôlée » ; ou « rien à contrôler : aucun volume dans la
+maquette ») ; états des pièces ; signalements ; sortie
 (chemin du JSON, ou boîte annulée, ou échec d'écriture — sans fichier
 partiel) ; rappel « lecture seule » et version.
 
@@ -304,15 +308,50 @@ lue. Comptes relevés sur le rapport par Bruno :
 - **Défaut constaté** : à l'écran, les « __ » des noms de famille
   disparaissent, même entre backticks (table *Unicité* et signalements) ; le
   JSON est intact. Motif de la version `2026-10-13a` (§7).
-- *Hypothèse, non vérifiée* : les 2 niveaux à `REF_Etage` vide sont les deux
-  niveaux `Site` relevés au §9.1, et les 2 volumes vides sont `Volume 1` et
-  `Volume 2`.
+- *Mesuré* (source : `thestudy_G_VL_2026-10-13_0040.json`) : les 2 niveaux
+  à `REF_Etage` vide sont `EXT_BLVD` et `EXT_PARC`, les deux niveaux `Site`
+  déjà relevés au §9.1 ; les 2 volumes vides sont `Volume 1` (id 5532336) et
+  `Volume 2` (id 5530844), le chantier en cours du §9.1.
 
-### 9.3 Version `2026-10-13a` — non éprouvée
+### 9.3 2026-10-13 — version `2026-10-13a`, `thestudy_G_AN` et `thestudy_G_VL`
 
-À vérifier dans Revit : noms de famille affichés avec leurs « __ » ; boîte
-ouverte sur le dernier dossier ; `nom_type` dans le JSON ; date avec fuseau ;
-aucun `.tmp` laissé dans le dossier de sortie.
+Exécution du 2026-10-13 vers 01:04, maquettes collaboratives cloud, copie
+locale lue. Comptes relevés sur le rapport par Bruno :
+
+| Maquette | Niveaux | Quadrillages | Volumes | Pièces | Sous-projets | Liens | Résidu transformation | Signalements |
+|---|---|---|---|---|---|---|---|---|
+| `thestudy_G_AN` | 23 | 73 | 0 | 0 | 37 | 19 | 0,000 mm | 1 |
+| `thestudy_G_VL` | 23 | 0 | 217 | 0 | 36 | 1 | non relevé | 7 |
+
+- `thestudy_G_AN`, niveaux : `REF_Batiment` 23 lus ; `REF_Etage` 21 lus /
+  2 vides. Date de l'en-tête au format ISO avec fuseau : conforme.
+- `thestudy_G_VL`, volumes : les 5 paramètres (`REF_Zone`, `REF_Etage`,
+  `REF_Batiment`, `CLS_Nature_volume`, `REF_Id`) à 215 lus / 2 vides chacun.
+  Unicité : 215 valeurs contrôlées, 1 doublon `dbe39340-…` (VOL_090 id
+  5487277, VOL_091 id 5526199), le même qu'aux §9.1 et §9.2. Champ
+  `nom_type` présent ; `famille` porte les noms complets.
+
+**Vérifié à l'écran par Bruno.**
+- Les noms avec « __ » s'affichent entiers : défaut de la version
+  `2026-10-12c` (§9.2) corrigé.
+- La boîte de dossier s'ouvre directement sur le dernier dossier
+  (Téléchargements).
+- Aucun fichier `.tmp` résiduel : seul le `.json` est écrit.
+
+**Reste non éprouvé** pour cette version : le repli sur `pick_folder` (§8),
+qui ne s'est pas déclenché.
+
+**Défaut constaté** : sur `thestudy_G_AN`, qui n'a aucun volume, la section
+*Unicité* affiche « Non controlee : aucune valeur lue sur l'instance » —
+trompeur, il n'y avait rien à contrôler. Aucun signalement d'unicité n'est
+émis dans ce cas (le seul signalement de G_AN est d'un autre ordre).
+Motif de la version `2026-10-13b`.
+
+### 9.4 Version `2026-10-13b` — non éprouvée
+
+À vérifier dans Revit, sur une maquette sans volume (ex. `thestudy_G_AN`) :
+la section *Unicité* affiche « Rien a controler : aucun volume dans la
+maquette » et aucun signalement d'unicité.
 
 ## 10. Historique des versions
 
@@ -321,4 +360,5 @@ aucun `.tmp` laissé dans le dossier de sortie.
 | `2026-10-12a` | 2026-10-12 | Première version. Dossier de sortie lu dans un fichier du poste, Maj+clic pour le changer. Éprouvée le jour même (§9.1). |
 | `2026-10-12b` | 2026-10-12 | Dossier demandé **à chaque clic** (décision Bruno), le dernier rappelé dans le titre ; réglage Maj+clic (`config.py`) et exemple de configuration retirés. Contrôle d'unicité de `REF_Id` (§6). |
 | `2026-10-12c` | 2026-10-12 | Corrections d'une relecture critique indépendante, sans point bloquant : « non contrôlée » au lieu d'un faux « aucun doublon » ; en-tête « copie locale » (champ `collaboratif_non_detache`) au lieu de « état synchronisé de la centrale » ; valeurs portées par le type exclues du contrôle ; `NON_LU` sur les lectures en échec (élévation, coordonnées, famille) et import CAO illisible signalé ; messages distincts annulation / échec d'écriture, rappel mis à jour après une écriture réussie seulement ; comparaison insensible à la casse ; pièces triées. Seconde relecture le 2026-10-13 (statuts, nettoyages). Éprouvée le 2026-10-13 (§9.2). |
-| `2026-10-13a` | 2026-10-13 | Finition : échappement Markdown du rapport (`echapper_md`) ; champ `nom` des volumes renommé `nom_type` ; boîte de dossier ouverte sur le dernier dossier ; écriture atomique du JSON ; date ISO avec fuseau ; ce document réécrit en référence. Non éprouvée (§9.3). |
+| `2026-10-13a` | 2026-10-13 | Finition : échappement Markdown du rapport (`echapper_md`) ; champ `nom` des volumes renommé `nom_type` ; boîte de dossier ouverte sur le dernier dossier ; écriture atomique du JSON ; date ISO avec fuseau ; ce document réécrit en référence. Éprouvée le 2026-10-13 (§9.3), hormis le repli `pick_folder`. |
+| `2026-10-13b` | 2026-10-13 | Section *Unicité* : « rien à contrôler : aucun volume dans la maquette » quand la rubrique est vide, au lieu de « non contrôlée » (choix du message porté par `message_unicite`, testé). Non éprouvée (§9.4). |
