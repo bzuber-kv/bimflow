@@ -230,8 +230,8 @@ rapporté par Bruno le 2026-10-13). Le JSON, lui, n'est jamais échappé.
   compris. La règle §8g (`03_REGLES_DEV.md`) n'interdit que le *code* dans
   OneDrive, pas les données. Règle commune à décider.
 
-Instance The Study (*spécifique The Study*) — dossier de sortie prévu :
-`%USERPROFILE%\OneDrive - KEOVIA Solutions\WORK\affaires\A_049_TheStudy\context\ref\maquette_photo`
+Le bouton ne cible aucun dossier. Chaque affaire documente, de son côté,
+où elle range ses photos de maquette.
 
 ## 9. Recette
 
@@ -278,7 +278,6 @@ aucun sous-projet fermé.
   paramètres.
 - 217 volumes contre 202 au 2026-09-24. Aucune pièce dans l'une ou l'autre
   maquette.
-- Les deux JSON ont été écrits dans `Downloads`, pas dans `maquette_photo`.
 
 Le contrôle d'unicité (version `b`) a été rejoué hors dépôt sur
 `thestudy_G_VL_2026-10-12_1659.json` (photo du 2026-10-12 16:59) : il trouve
