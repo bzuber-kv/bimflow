@@ -3,7 +3,7 @@
 > Repo `bimflow` · portée : **générique** (standard Keovia) · créé le 2026-10-12 · mis à jour le 2026-10-13 (version `2026-10-13b` : recette de `2026-10-13a`, message d'unicité sur maquette sans volume)
 > Bouton : `bimflow.tab\Dev.panel\PhotoMaquette.pushbutton` — **bleu, lecture seule**
 > Logique testable : `bimflow.extension\lib\bimflow_photo.py` · tests : `tests\test_bimflow_photo.py`
-> Statut : versions `2026-10-12a` à `2026-10-13a` **éprouvées** dans Revit (§9) ; version `2026-10-13b` **non éprouvée** (§9.4).
+> Statut : version courante `2026-10-13b` **éprouvée** dans Revit (§9.4) ; seul le repli `pick_folder` n'a jamais été déclenché (§8).
 
 Les exemples tirés de The Study sont marqués *spécifique The Study* ; tout le
 reste vaut pour toute maquette.
@@ -321,7 +321,11 @@ locale lue. Comptes relevés sur le rapport par Bruno :
 | Maquette | Niveaux | Quadrillages | Volumes | Pièces | Sous-projets | Liens | Résidu transformation | Signalements |
 |---|---|---|---|---|---|---|---|---|
 | `thestudy_G_AN` | 23 | 73 | 0 | 0 | 37 | 19 | 0,000 mm | 1 |
-| `thestudy_G_VL` | 23 | 0 | 217 | 0 | 36 | 1 | non relevé | 7 |
+| `thestudy_G_VL` | 23 | 0 | 217 | 0 | 36 | 1 | 0,000 mm (inverse) | 7 |
+
+Résidu de `thestudy_G_VL` (exécution de 01:04:25) lu dans
+`thestudy_G_VL_2026-10-13_0104.json`,
+`en_tete.reperes.transformation_interne_partage`.
 
 - `thestudy_G_AN`, niveaux : `REF_Batiment` 23 lus ; `REF_Etage` 21 lus /
   2 vides. Date de l'en-tête au format ISO avec fuseau : conforme.
@@ -344,14 +348,25 @@ qui ne s'est pas déclenché.
 **Défaut constaté** : sur `thestudy_G_AN`, qui n'a aucun volume, la section
 *Unicité* affiche « Non controlee : aucune valeur lue sur l'instance » —
 trompeur, il n'y avait rien à contrôler. Aucun signalement d'unicité n'est
-émis dans ce cas (le seul signalement de G_AN est d'un autre ordre).
+émis dans ce cas (le seul signalement de G_AN porte sur `REF_Etage`, §9.4).
 Motif de la version `2026-10-13b`.
 
-### 9.4 Version `2026-10-13b` — non éprouvée
+### 9.4 2026-10-13 — version `2026-10-13b`, `thestudy_G_AN`
 
-À vérifier dans Revit, sur une maquette sans volume (ex. `thestudy_G_AN`) :
-la section *Unicité* affiche « Rien a controler : aucun volume dans la
-maquette » et aucun signalement d'unicité.
+Exécution du 2026-10-13 à 01:15, maquette collaborative cloud, copie locale
+lue. Comptes relevés par Bruno, identiques à ceux de 01:04 (§9.3) :
+
+| Maquette | Niveaux | Quadrillages | Volumes | Pièces | Sous-projets | Liens | Résidu transformation | Signalements |
+|---|---|---|---|---|---|---|---|---|
+| `thestudy_G_AN` | 23 | 73 | 0 | 0 | 37 | 19 | 0,000 mm (inverse) | 1 |
+
+- Section *Unicité* : « Rien a controler : aucun volume dans la maquette » —
+  défaut du §9.3 corrigé.
+- Aucun signalement d'unicité ; le seul signalement porte sur `REF_Etage`
+  (2 vides).
+
+Rien d'autre à éprouver pour cette version. Pour l'outil, seul le repli
+`pick_folder` (§8) n'a jamais été déclenché.
 
 ## 10. Historique des versions
 
@@ -361,4 +376,5 @@ maquette » et aucun signalement d'unicité.
 | `2026-10-12b` | 2026-10-12 | Dossier demandé **à chaque clic** (décision Bruno), le dernier rappelé dans le titre ; réglage Maj+clic (`config.py`) et exemple de configuration retirés. Contrôle d'unicité de `REF_Id` (§6). |
 | `2026-10-12c` | 2026-10-12 | Corrections d'une relecture critique indépendante, sans point bloquant : « non contrôlée » au lieu d'un faux « aucun doublon » ; en-tête « copie locale » (champ `collaboratif_non_detache`) au lieu de « état synchronisé de la centrale » ; valeurs portées par le type exclues du contrôle ; `NON_LU` sur les lectures en échec (élévation, coordonnées, famille) et import CAO illisible signalé ; messages distincts annulation / échec d'écriture, rappel mis à jour après une écriture réussie seulement ; comparaison insensible à la casse ; pièces triées. Seconde relecture le 2026-10-13 (statuts, nettoyages). Éprouvée le 2026-10-13 (§9.2). |
 | `2026-10-13a` | 2026-10-13 | Finition : échappement Markdown du rapport (`echapper_md`) ; champ `nom` des volumes renommé `nom_type` ; boîte de dossier ouverte sur le dernier dossier ; écriture atomique du JSON ; date ISO avec fuseau ; ce document réécrit en référence. Éprouvée le 2026-10-13 (§9.3), hormis le repli `pick_folder`. |
-| `2026-10-13b` | 2026-10-13 | Section *Unicité* : « rien à contrôler : aucun volume dans la maquette » quand la rubrique est vide, au lieu de « non contrôlée » (choix du message porté par `message_unicite`, testé). Non éprouvée (§9.4). |
+| `2026-10-13b` | 2026-10-13 | Section *Unicité* : « rien à contrôler : aucun volume dans la maquette » quand la rubrique est vide, au lieu de « non contrôlée » (choix du message porté par `message_unicite`, testé). Éprouvée le 2026-10-13 (§9.4). |
+| `2026-10-13b` | 2026-10-13 | Libellés de statut alignés (en-tête du script, infobulle, `_ROLE.txt`), sans changement de comportement ; `VERSION` inchangée. |
