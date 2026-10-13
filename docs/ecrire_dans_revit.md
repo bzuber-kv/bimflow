@@ -205,7 +205,43 @@ centrale : il coûte un clic et répond à la seule question qui compte.
 
 ---
 
-## 8. Discipline générale, inchangée
+## 8. Exceptions attrapées en série dans une boucle : Revit meurt
+
+*[2026-10-13 — cause établie par le minidump, correction à éprouver]*
+
+**Constat.** Le bouton `Renommer selon table` (version `2026-10-13a`) a tué
+Revit, sans message, environ 25 s après le choix du CSV, sur une copie
+détachée. Minidump : **débordement de pile** (`c00000fd`) dans `coreclr`, au
+milieu de **43 cycles imbriqués** « gestionnaire d'exception → nouvelle
+exception ». Le script exécutait, dans **une même boucle** de sa fonction
+principale, `try: int(id) except ValueError: continue` sur une table dont
+**56 lignes consécutives** ont un id vide.
+
+**Mécanisme** *(hypothèse cohérente avec la pile, non lue dans le code de
+l'interpréteur)* : en mode interprété, IronPython poursuit l'exécution de la
+boucle **à l'intérieur** du gestionnaire d'exception. Chaque exception
+attrapée empile donc la suivante, au lieu de dépiler. Quelques dizaines
+suffisent à épuiser la pile ; ce n'est pas rattrapable, et Revit se ferme.
+
+**Ce qui n'est PAS en cause.** Un `try` dans une boucle qui n'attrape rien ne
+coûte rien : 18 fichiers du dépôt en contiennent, dont `Photo maquette`, qui
+tourne. Le risque naît quand **beaucoup d'exceptions sont réellement levées
+dans une même invocation de fonction**.
+
+**Forme correcte.**
+- Tester avant d'agir plutôt que d'attendre l'exception (`id_entier()` par
+  expression régulière, pas `int()` dans un `try`).
+- Quand l'API peut lever pour un élément, mettre le `try` dans une **fonction
+  à part** appelée par la boucle : le gestionnaire se referme au retour.
+
+**Contrôle automatique** : `tests\test_bimflow_correspondance.py` vérifie
+qu'aucun `try` n'est placé dans une boucle du script de ce bouton. Les autres
+scripts ne sont pas contrôlés : à juger au cas par cas, selon le nombre
+d'exceptions que la boucle peut réellement attraper.
+
+---
+
+## 9. Discipline générale, inchangée
 
 - Tout script qui écrit est précédé d'un script d'**audit en lecture seule**
   sur le même périmètre.

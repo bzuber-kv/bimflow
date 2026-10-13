@@ -3,7 +3,7 @@
 > Repo `bimflow` · portée : **générique** (standard Keovia) · créé le 2026-10-13
 > Bouton : `bimflow.tab\Dev.panel\RenommerSelonTable.pushbutton` — **orange, écrit en mode réel**
 > Logique testable : `bimflow.extension\lib\bimflow_correspondance.py` · tests : `tests\test_bimflow_correspondance.py`
-> Statut : version `2026-10-13a` **non éprouvée** dans Revit ; logique testée sous CPython et pré-simulée hors Revit (§8).
+> Statut : version `2026-10-13b` **non éprouvée** dans Revit ; la `2026-10-13a` a tué Revit à la lecture (§8.2) ; logique testée sous CPython et pré-simulée hors Revit (§8.1).
 
 ## 1. Ce que fait le bouton
 
@@ -133,7 +133,18 @@ comptes (table de 369 lignes de données).
 
 `REF_Id` : une seule régénération prévue, le volume en doublon (§4).
 
-### 8.2 Simulation dans Revit sur copie détachée
+### 8.2 2026-10-13, 09:59–10:03 — version `2026-10-13a`, copies détachées `thestudy_G_AN` et `thestudy_G_VL`
+
+Journal Revit et minidump du rapport d'erreur (CER) :
+- deux lancements arrêtés à la boîte de choix du CSV (annulation de Bruno) :
+  rien lu, rien écrit, aucun rapport — conforme ;
+- troisième lancement, sur `thestudy_G_AN_détaché` : **Revit tué** environ 25 s
+  après le clic, sans message. Aucune transaction n'était ouverte : la phase de
+  lecture était en cours. Cause : 56 exceptions attrapées en série dans une
+  même boucle (`docs\ecrire_dans_revit.md` §8). Motif de la version
+  `2026-10-13b`.
+
+### 8.3 Simulation de la version `2026-10-13b`
 
 À faire.
 
@@ -141,4 +152,5 @@ comptes (table de 369 lignes de données).
 
 | Version | Date | Contenu |
 |---|---|---|
-| `2026-10-13a` | 2026-10-13 | Première version. |
+| `2026-10-13a` | 2026-10-13 | Première version. Tue Revit à la lecture d'une table à lignes `zone` (§8.2). |
+| `2026-10-13b` | 2026-10-13 | Plus aucune exception attrapée dans une boucle : ids lus par `id_entier()`, qui ne lève rien ; lectures de famille et de paramètre dans des fonctions à part ; test qui l'impose. |

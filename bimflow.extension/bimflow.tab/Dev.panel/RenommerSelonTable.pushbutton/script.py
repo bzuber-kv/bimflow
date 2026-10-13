@@ -2,9 +2,10 @@
 """Renommer selon table - applique une table de correspondance au modele actif.
 
 #############################################################################
-# STATUT : NON EPROUVE dans Revit au 2026-10-13. Logique testee sous        #
-# CPython (tests\test_bimflow_correspondance.py) et pre-simulee hors Revit  #
-# sur deux photos de maquette. Ce script ECRIT en mode reel : le resultat   #
+# STATUT : version 2026-10-13b NON EPROUVEE dans Revit. La 2026-10-13a a    #
+# tue Revit a la lecture (exceptions attrapees en serie dans une boucle,    #
+# docs\ecrire_dans_revit.md §8). Logique testee sous CPython et            #
+# pre-simulee hors Revit. Ce script ECRIT en mode reel : le resultat        #
 # affiche ne prouve rien, la verification se fait par une photo maquette    #
 # relancee apres coup (R19 fait 6).                                         #
 #############################################################################
@@ -118,15 +119,19 @@ def lire_params(el, guids):
     d = OrderedDict()
     for nom, g in guids.items():
         p = parametre(el, g)
-        if p is None:
-            continue
-        try:
-            texte = p.StorageType == StorageType.String
-            d[nom] = {u"valeur": p.AsString() if texte else p.AsValueString(),
-                      u"ecrivable": bool(texte and not p.IsReadOnly)}
-        except Exception:
-            d[nom] = {u"valeur": photo.NON_LU, u"ecrivable": False}
+        if p is not None:
+            d[nom] = lire_un_param(p)
     return d
+
+
+def lire_un_param(p):
+    """Fonction a part : aucun try/except directement dans une boucle."""
+    try:
+        texte = p.StorageType == StorageType.String
+        return {u"valeur": p.AsString() if texte else p.AsValueString(),
+                u"ecrivable": bool(texte and not p.IsReadOnly)}
+    except Exception:
+        return {u"valeur": photo.NON_LU, u"ecrivable": False}
 
 
 def surveillance(el):
@@ -149,6 +154,18 @@ def surveillance(el):
 
 def ids(collecteur):
     return list(collecteur.ToElementIds())
+
+
+def famille_de(el):
+    """(nom, id, in_situ) de la famille d'un volume. Fonction a part : un
+    try/except ne se place jamais directement dans une boucle (voir main)."""
+    if not isinstance(el, FamilyInstance):
+        return None, None, None
+    try:
+        fam = el.Symbol.Family
+        return fam.Name, id_de(fam.Id), bool(fam.IsInPlace)
+    except Exception:
+        return photo.NON_LU, None, None
 
 
 # --------------------------------------------------------------------------
@@ -227,14 +244,7 @@ def main():
     for eid in ids(FilteredElementCollector(doc).OfCategory(
             BuiltInCategory.OST_Mass).WhereElementIsNotElementType()):
         el = doc.GetElement(eid)
-        famille, fid, in_situ = None, None, None
-        if isinstance(el, FamilyInstance):
-            try:
-                fam = el.Symbol.Family
-                famille, fid, in_situ = fam.Name, id_de(fam.Id), bool(
-                    fam.IsInPlace)
-            except Exception:
-                famille = photo.NON_LU
+        famille, fid, in_situ = famille_de(el)
         modele[u"volumes"][id_de(eid)] = {
             u"famille": famille, u"famille_id": fid, u"in_situ": in_situ,
             u"params": lire_params(el, g_vol)}
@@ -245,12 +255,15 @@ def main():
     connus = set()
     for rub in (u"niveaux", u"quadrillages", u"volumes"):
         connus.update(modele[rub].keys())
+    # PAS de try/except dans une boucle : sous IronPython interprete, la
+    # suite de la boucle s'execute DANS le gestionnaire d'exception, et
+    # chaque exception attrapee s'empile sur la precedente. Mesure le
+    # 2026-10-13 : int("") sur les 56 lignes de zone a fait deborder la pile
+    # et tue Revit (43 cycles imbriques au minidump). C.id_entier ne leve
+    # rien.
     for l in lignes:
-        try:
-            i = int(l[u"id_revit"])
-        except ValueError:
-            continue
-        if i in connus:
+        i = C.id_entier(l[u"id_revit"])
+        if i is None or i in connus:
             continue
         el = doc.GetElement(element_id(i))
         if el is not None:

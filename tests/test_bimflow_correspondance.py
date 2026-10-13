@@ -364,5 +364,23 @@ def test_script_sans_guid_en_dur_ni_tilde_temporaire():
     assert u"~TMP" not in texte
 
 
+def test_id_entier_sans_exception():
+    assert C.id_entier(u"") is None and C.id_entier(None) is None
+    assert C.id_entier(u" 5526199 ") == 5526199 and C.id_entier(u"12a") is None
+
+
+def test_aucun_try_dans_une_boucle_du_script():
+    """IronPython interprete : un try/except place directement dans une
+    boucle empile ses gestionnaires (crash Revit du 2026-10-13)."""
+    import ast
+    arbre = ast.parse(_script())
+    for boucle in ast.walk(arbre):
+        if isinstance(boucle, (ast.For, ast.While)):
+            for noeud in ast.walk(boucle):
+                assert not isinstance(noeud, ast.Try), (
+                    u"try/except directement dans une boucle, ligne {0}"
+                    .format(noeud.lineno))
+
+
 def test_bouton_a_son_icone():
     assert os.path.exists(os.path.join(BOUTON, "icon.png"))

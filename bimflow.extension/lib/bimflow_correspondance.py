@@ -39,7 +39,7 @@ from collections import OrderedDict
 import bimflow_noms as noms
 from bimflow_sous_projets import decoder, lire_csv
 
-VERSION = u"2026-10-13a"
+VERSION = u"2026-10-13b"
 
 COLONNES = (u"categorie", u"id_revit", u"ancien_nom", u"nouveau_nom",
             u"parametre", u"ancienne_valeur", u"nouvelle_valeur", u"statut",
@@ -231,11 +231,16 @@ def _parametre(element, nom):
     return (element.get(u"params") or {}).get(nom)
 
 
-def _id_entier(texte):
-    try:
-        return int(texte)
-    except (TypeError, ValueError):
+_ENTIER = re.compile(u"^-?[0-9]+$")
+
+
+def id_entier(texte):
+    """Entier, ou None. Ne leve JAMAIS : sous IronPython interprete, une
+    exception attrapee dans une boucle s'empile sur la precedente et finit
+    par tuer Revit (mesure du 2026-10-13, docs\\ecrire_dans_revit.md §8)."""
+    if texte is None or not _ENTIER.match(texte.strip()):
         return None
+    return int(texte.strip())
 
 
 def analyser(lignes, modele):
@@ -273,7 +278,7 @@ def analyser(lignes, modele):
                          u"sert au controle des volumes")
             continue
 
-        eid = _id_entier(l[u"id_revit"])
+        eid = id_entier(l[u"id_revit"])
         if eid is None:
             r.refuser(u"id_revit « {0} » absent ou non entier".format(
                 l[u"id_revit"]))
