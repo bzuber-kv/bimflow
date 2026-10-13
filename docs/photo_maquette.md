@@ -282,12 +282,31 @@ VOL_090 / VOL_091.
 
 ### 9.2 2026-10-13 — version `2026-10-12c`, `thestudy_G_VL`
 
-Recette déclarée satisfaisante par Bruno sur les trois points non éprouvés
-jusque-là : boîte de dossier à chaque clic, section *Unicité*, en-tête
-« copie locale ». Constat rapporté par Bruno le 2026-10-13 : dans la fenêtre
-pyRevit, les « __ » des noms de famille disparaissent, même entre backticks (table *Unicité* et
-signalements) — corrigé en version `2026-10-13a`. Les comptes de cette
-exécution ne sont pas consignés ici.
+Exécution du 2026-10-13 à 00:40, maquette collaborative cloud, copie locale
+lue. Comptes relevés sur le rapport par Bruno :
+
+| Maquette | Heure | Niveaux | Quadrillages | Volumes | Pièces | Sous-projets | Liens | Signalements |
+|---|---|---|---|---|---|---|---|---|
+| `thestudy_G_VL` | 00:40 | 23 | 0 | 217 | 0 | 36 | 1 (Revit) | 7 |
+
+| Rubrique | Paramètre | Lus | Vides |
+|---|---|---|---|
+| niveaux | `REF_Batiment` | 23 | 0 |
+| niveaux | `REF_Etage` | 21 | 2 |
+| volumes | `REF_Zone`, `REF_Etage`, `REF_Batiment`, `CLS_Nature_volume`, `REF_Id` | 215 chacun | 2 chacun |
+
+- **Unicité** : 215 valeurs contrôlées, **1 doublon** —
+  `dbe39340-81d3-4d74-9e1c-ce84a853d07d` sur VOL_090 (id 5487277) et VOL_091
+  (id 5526199), le doublon déjà trouvé le 2026-10-12 (§9.1).
+- **Points jusque-là non éprouvés, constatés conformes** : en-tête « copie
+  locale » affiché ; boîte de dossier à chaque clic ; section *Unicité* ;
+  JSON écrit.
+- **Défaut constaté** : à l'écran, les « __ » des noms de famille
+  disparaissent, même entre backticks (table *Unicité* et signalements) ; le
+  JSON est intact. Motif de la version `2026-10-13a` (§7).
+- *Hypothèse, non vérifiée* : les 2 niveaux à `REF_Etage` vide sont les deux
+  niveaux `Site` relevés au §9.1, et les 2 volumes vides sont `Volume 1` et
+  `Volume 2`.
 
 ### 9.3 Version `2026-10-13a` — non éprouvée
 
