@@ -278,7 +278,6 @@ aucun sous-projet fermé.
   paramètres.
 - 217 volumes contre 202 au 2026-09-24. Aucune pièce dans l'une ou l'autre
   maquette.
-- Les deux JSON ont été écrits dans `Downloads`, pas dans `maquette_photo`.
 
 Le contrôle d'unicité (version `b`) a été rejoué hors dépôt sur
 `thestudy_G_VL_2026-10-12_1659.json` (photo du 2026-10-12 16:59) : il trouve
