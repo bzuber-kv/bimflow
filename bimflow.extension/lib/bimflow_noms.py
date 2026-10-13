@@ -27,7 +27,8 @@ LES CINQ SEGMENTS (motif etendu le 2026-09-24)
                EXTERIEUR, ENVELOPPE.
                ENTRETOIT s'ecrit en UN mot (decision Bruno 2026-09-24) ;
                ENTRE_TOIT est retire, aucun volume ne le portait.
-  4  cle       OPTIONNEL, parmi sup, JU, MI, SC, SE.
+  4  cle       OPTIONNEL, parmi sup, mez, JU, MI, SC, SE (mez ajoutee et
+               cles de batiment rendues caduques le 2026-10-13 : voir CLES).
                - cle dans {JU,MI,SC,SE} : elle donne REF_Batiment et
                  SURCHARGE le prefixe de la zone. Mesure du 2026-09-24 :
                  44 volumes portent une telle cle, dont 18 ou elle differe
@@ -70,9 +71,17 @@ NATURES_EXPORTEES = ("ETAGE", "TOITURE", "ENTRETOIT", "EXTERIEUR")
 NATURE_A_RENOMMER = "0"
 
 # Cles admises au 5e segment.
+# mez (2026-10-13, decision A_049 secteurs K) : discriminant comme sup, la
+# mezzanine s'insere dans son etage (REF_Etage FLOOR_n) ; elle n'alimente
+# aucun parametre.
+# CLES_BATIMENT : regle « la cle l'emporte sur le prefixe » rendue CADUQUE
+# le 2026-10-13 (REF_Batiment = secteur de la colonne). Ces cles restent
+# lues pour les noms anterieurs, que les outils existants decrivent encore ;
+# un nom NOUVEAU n'en porte plus (bimflow_correspondance le refuse).
 CLE_SUP = "sup"
+CLE_MEZ = "mez"
 CLES_BATIMENT = ("JU", "MI", "SC", "SE")
-CLES = (CLE_SUP,) + CLES_BATIMENT
+CLES = (CLE_SUP, CLE_MEZ) + CLES_BATIMENT
 
 # Batiments, et leur ordre de parcours : alphabetique, EXT en dernier.
 BATIMENTS = ("JU", "MI", "SC", "SE", "EXT")
