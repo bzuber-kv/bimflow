@@ -59,6 +59,15 @@ Y est, et l'ordre d'emploi est celui-la :
     Panneau definitif propose : Calage projet (B25). Doc :
     docs\photo_maquette.md
 
+  + Renommer selon table (ECRITURE, NON EPROUVE, 2026-10-13) - applique
+    une table de correspondance CSV au modele actif : niveaux,
+    quadrillages et leurs types, familles de volumes et leurs REF_,
+    vues contenant un ancien nom de niveau. Controle d'entree exact (id
+    ET ancien nom), simulation par defaut sans transaction, mode reel
+    derriere une case et seulement sans refus, deux passes dans un
+    TransactionGroup, rapport JSON date a cote de la table. A verifier
+    par une Photo maquette relancee. Doc : docs\renommer_selon_table.md
+
 Les trois premiers ont tourne : la regle de sortie leur est acquise, et leur
 panneau definitif reste a decider (B25). Ils restent ici en attendant cette
 decision, avec dans chaque en-tete ce qui a ete MESURE, et sur quoi.

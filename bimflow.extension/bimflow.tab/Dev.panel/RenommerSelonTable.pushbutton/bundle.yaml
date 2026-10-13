@@ -1,0 +1,14 @@
+title: |-
+  Renommer
+  selon table
+tooltip: >-
+  NON ÉPROUVÉ dans Revit au 2026-10-13. ÉCRIT en mode réel seulement.
+  Applique une table de correspondance (CSV ;) au modèle actif : niveaux,
+  quadrillages et leurs types, familles de volumes (REF_Zone, REF_Etage,
+  REF_Batiment recalculés du nouveau nom), vues contenant un ancien nom de
+  niveau. Simulation par défaut, sans transaction ; mode réel derrière une
+  case à cocher, proposé seulement sans aucune ligne refusée ; deux passes
+  dans un TransactionGroup. Rapport JSON daté à côté de la table.
+  Doc : docs\renommer_selon_table.md
+author: Keovia Solutions inc.
+highlight: new
