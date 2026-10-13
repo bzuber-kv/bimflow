@@ -16,9 +16,11 @@ Photo maquette - etat du modele actif a un instant, en un fichier JSON :
   liens ........ nom, type, epingle ou non.
 
 #############################################################################
-# STATUT : NON EPROUVE - ecrit le 2026-10-12, jamais execute dans Revit.    #
-# Recette prevue : thestudy_G_AN puis thestudy_G_VZ. Les comptes obtenus    #
-# s'inscrivent dans docs\\photo_maquette.md, section Recette.                #
+# STATUT : A TOURNE le 2026-10-12 (version 2026-10-12a) sur thestudy_G_AN   #
+# et thestudy_G_VL, maquettes collaboratives cloud : sans erreur, residu de #
+# la transformation 0,000 mm. NON EPROUVE depuis : boite de dossier a       #
+# chaque clic et controle d'unicite (2026-10-12b/c). Recette : section 7 de #
+# docs\\photo_maquette.md.                                                  #
 #############################################################################
 
 RIEN N'EST DEDUIT D'UN NOM. Les parametres REF_ / CLS_ sont lus par GUID,
@@ -29,12 +31,12 @@ present sans valeur, null aussi ; une lecture qui leve une exception vaut
 NON_LU. Les trois cas sont distingues dans le JSON (statut) et comptes au
 rapport.
 
-SORTIE. Le dossier vient d'un fichier de configuration du POSTE,
-%APPDATA%\\bimflow\\photo_maquette.json, cle "dossier_sortie" (les %VAR%
-y sont developpees). Absent ou inutilisable : le bouton demande un dossier
-et le retient. Maj+clic (config.py) pour en changer. Le fichier s'appelle
-<modele>_<AAAA-MM-JJ_HHMM>.json et n'ecrase jamais une photo precedente.
-Le chemin complet s'affiche en fin de rapport.
+SORTIE. Le dossier est demande a CHAQUE execution (decision Bruno du
+2026-10-12). Le dernier choisi est rappele dans le titre de la boite, lu
+dans %APPDATA%\\bimflow\\photo_maquette.json - un simple rappel, jamais
+utilise sans etre choisi. Annuler la boite : rien n'est ecrit. Le fichier
+s'appelle <modele>_<AAAA-MM-JJ_HHMM>.json et n'ecrase jamais une photo
+precedente. Le chemin complet s'affiche en fin de rapport.
 
 REPERES.
   - elevation_pbp_mm = Level.ProjectElevation - Z interne du point de base
@@ -54,21 +56,24 @@ REPERES.
     modele, en mm (repere de la geometrie) ; le point de piece est aussi
     publie en partage, en m.
 
-MAQUETTE CENTRALE. Lecture seule : rien a confirmer. Mais la photo decrit
-l'etat SYNCHRONISE a l'instant de la lecture ; le travail non synchronise
-des autres n'y est pas. Le constat part dans l'en-tete du JSON.
+MAQUETTE COLLABORATIVE. Lecture seule : rien a confirmer. La photo decrit
+la COPIE LOCALE ouverte : etat de la derniere synchronisation ou du dernier
+rechargement de cet utilisateur, PLUS ses modifications non synchronisees ;
+le travail non synchronise des autres n'y est pas. Le constat part dans
+l'en-tete du JSON.
 
 SOUS-PROJETS FERMES. Leurs elements ne sont pas charges : ils manquent a
 TOUS les comptes. Ils sont detectes et annonces avant tout chiffre, et leur
 nombre d'elements vaut null.
 
-bimflow - Keovia Solutions inc. - v1 2026-10-12
+bimflow - Keovia Solutions inc. - 2026-10-12 (a : premiere version ;
+b : dossier a chaque clic, doublons ; c : corrections de la relecture)
 """
 
 __title__ = "Photo\nmaquette"
 __author__ = "Keovia Solutions inc."
 
-VERSION = u"2026-10-12a"
+VERSION = u"2026-10-12c"
 
 # Ecart admis entre la position partagee annoncee par Revit et celle que la
 # transformation calcule, sur les points de controle, en mm.
@@ -234,7 +239,10 @@ try:
     detache = bool(doc.IsDetached)
 except Exception:
     detache = None
-centrale = collaboratif and detache is not True
+# Collaborative non detachee = on lit une COPIE LOCALE (une maquette cloud
+# s'ouvre toujours ainsi) : pas l'etat de la centrale. Le doute sur le
+# detachement va du cote prudent.
+non_detachee = collaboratif and detache is not True
 
 ss_projets_user = []
 fermes = []
@@ -254,10 +262,11 @@ if fermes:
             len(fermes), u", ".join(fermes)))
     signaler(u"{0} sous-projet(s) ferme(s), elements absents de la photo : "
              u"{1}".format(len(fermes), u", ".join(fermes)))
-if centrale:
+if non_detachee:
     sortie.print_md(
-        u"*Maquette centrale (non detachee) : la photo decrit l'etat "
-        u"synchronise a l'instant de la lecture.*")
+        u"*Maquette collaborative : la photo decrit la COPIE LOCALE (derniere "
+        u"synchronisation de cet utilisateur + ses modifications non "
+        u"synchronisees), pas l'etat de la centrale.*")
 
 # --------------------------------------------------------------------------
 # 1. Socle : GUID lus par nom
@@ -340,7 +349,7 @@ def partage_m(p):
     try:
         return point_m(transfo.OfPoint(p))
     except Exception:
-        return None
+        return photo.NON_LU
 
 
 def repere(bp):
@@ -370,14 +379,18 @@ for eid in ids(FilteredElementCollector(doc).OfClass(Level)
         continue
     n = OrderedDict([("nom", nom_de(lvl)), ("id", id_de(eid))])
     z_proj = None
+    illisible = False
     try:
         z_proj = lvl.ProjectElevation
     except Exception:
-        pass
-    n["elevation_pbp_mm"] = (mm(z_proj - z_pbp)
-                             if z_proj is not None and z_pbp is not None
-                             else None)
-    n["project_elevation_mm"] = mm(z_proj)
+        illisible = True
+    if illisible:
+        n["elevation_pbp_mm"] = photo.NON_LU
+    elif z_proj is not None and z_pbp is not None:
+        n["elevation_pbp_mm"] = mm(z_proj - z_pbp)
+    else:
+        n["elevation_pbp_mm"] = None
+    n["project_elevation_mm"] = photo.NON_LU if illisible else mm(z_proj)
     try:
         n["level_elevation_mm"] = mm(lvl.Elevation)
     except Exception:
@@ -459,7 +472,7 @@ for eid in ids(FilteredElementCollector(doc)
     try:
         famille = el.Symbol.Family.Name
     except Exception:
-        famille = None
+        famille = photo.NON_LU
     v["famille"] = famille
     params = parametres(el, guids_volume)
     valeurs_a_plat(v, params)
@@ -525,6 +538,8 @@ for eid in ids(FilteredElementCollector(doc)
     else:
         p["etat"] = u"placee"
     pieces.append(p)
+pieces.sort(key=lambda p: (u"{0}".format(p["numero"] or u""),
+                           u"{0}".format(p["nom"] or u""), p["id"]))
 
 # --------------------------------------------------------------------------
 # 7. Sous-projets
@@ -583,7 +598,9 @@ for eid in ids(FilteredElementCollector(doc).OfClass(ImportInstance)):
     try:
         if not el.IsLinked:
             continue
-    except Exception:
+    except Exception as err:
+        signaler(u"Import CAO id {0} : statut lie/importe illisible ({1}) - "
+                 u"absent des liens".format(id_de(eid), err))
         continue
     nom = None
     try:
@@ -625,7 +642,9 @@ en_tete = OrderedDict([
     ("utilisateur_windows", utilisateur_windows),
     ("collaboratif", collaboratif),
     ("detache", detache),
-    ("maquette_centrale", centrale),
+    ("collaboratif_non_detache", non_detachee),
+    ("source_lue", u"copie locale (derniere synchronisation + modifications "
+                   u"locales)" if non_detachee else u"fichier ouvert"),
     ("sous_projets_fermes", fermes),
     ("unites", OrderedDict([
         ("longueurs_internes", u"mm"), ("coordonnees_partagees", u"m"),
@@ -644,10 +663,11 @@ en_tete = OrderedDict([
                            ("niveaux", guids_niveau),
                            ("volumes", guids_volume)])),
 ])
-if centrale:
+if non_detachee:
     en_tete["avertissement"] = (
-        u"Maquette centrale : etat synchronise a l'instant de la lecture, "
-        u"sans le travail non synchronise des autres utilisateurs.")
+        u"Maquette collaborative : etat de la copie locale (derniere "
+        u"synchronisation de cet utilisateur et ses modifications non "
+        u"synchronisees), sans le travail non synchronise des autres.")
 
 donnees = OrderedDict([
     ("en_tete", en_tete),
@@ -666,42 +686,34 @@ donnees["signalements"] = signalements + sig_bilan
 # 10. Dossier de sortie, ecriture du JSON
 # --------------------------------------------------------------------------
 
-fichier_config = photo.chemin_config()
-dossier, brut, motif = photo.lire_config(fichier_config)
-if dossier is not None and not os.path.isdir(dossier):
-    parent = os.path.dirname(dossier.rstrip(u"\\/"))
-    if parent and os.path.isdir(parent):
-        try:
-            os.makedirs(dossier)
-        except Exception as err:
-            motif = u"dossier {0} non cree : {1}".format(dossier, err)
-            dossier = None
-    else:
-        motif = u"dossier configure introuvable : {0}".format(dossier)
-        dossier = None
-
-if dossier is None:
-    sortie.print_md(u"*Dossier de sortie : {0}*".format(motif))
-    choisi = forms.pick_folder(
-        title=u"Photo maquette - dossier de sortie (sera retenu)")
-    if choisi:
-        dossier = choisi
-        try:
-            photo.ecrire_config(fichier_config, choisi)
-            sortie.print_md(u"Dossier retenu dans `{0}`.".format(
-                fichier_config))
-        except Exception as err:
-            sortie.print_md(u"Dossier NON retenu ({0}).".format(err))
+# Le dossier est DEMANDE A CHAQUE EXECUTION (decision Bruno, 2026-10-12) :
+# une photo se range dans l'affaire de la maquette, et un dossier retenu
+# d'une fois sur l'autre finirait par ranger une maquette dans la mauvaise
+# affaire. Le dernier dossier choisi n'est qu'un RAPPEL, affiche dans le
+# titre de la boite ; il n'est jamais utilise sans qu'on le choisisse.
+fichier_memo = photo.chemin_config()
+dernier = photo.lire_config(fichier_memo)[0]
+titre = u"Photo maquette - {0} - dossier de sortie".format(doc.Title)
+if dernier:
+    titre = u"{0} (dernier : {1})".format(titre, dernier)
+dossier = forms.pick_folder(title=titre)
 
 chemin_json = None
+echec_ecriture = None
 if dossier:
     chemin_json = photo.chemin_libre(
         dossier, photo.nom_fichier(doc.Title, maintenant))
     try:
         photo.ecrire_json(chemin_json, donnees)
     except Exception as err:
-        sortie.print_md(u"**ECHEC de l'ecriture du JSON** : {0}".format(err))
-        chemin_json = None
+        echec_ecriture = u"{0}".format(err)
+    if echec_ecriture is None:
+        # Le rappel n'est mis a jour qu'apres une ecriture reussie.
+        try:
+            photo.ecrire_config(fichier_memo, dossier)
+        except Exception as err:
+            sortie.print_md(u"*Rappel du dernier dossier non enregistre "
+                            u"({0}).*".format(err))
 
 # --------------------------------------------------------------------------
 # 11. Rapport
@@ -726,6 +738,26 @@ for rubrique in (u"niveaux", u"volumes"):
                      s[photo.ILLISIBLE]] for nom, s in stat.items()],
         columns=[u"Parametre", u"lu", u"vide", u"absent", u"NON_LU"])
 
+for rubrique, champs in photo.IDENTIFIANTS_UNIQUES.items():
+    for champ in champs:
+        ctrl = comptes[rubrique].get(u"unicite_" + champ)
+        sortie.print_md(u"### Unicite - `{0}` ({1})".format(champ, rubrique))
+        if not ctrl or not ctrl[u"valeurs_controlees"]:
+            sortie.print_md(u"**Non controlee** : aucune valeur lue sur "
+                            u"l'instance.")
+            continue
+        groupes = ctrl[u"doublons"]
+        sortie.print_md(u"{0} valeur(s) controlee(s), {1} en double.".format(
+            ctrl[u"valeurs_controlees"], len(groupes)))
+        if not groupes:
+            continue
+        sortie.print_table(
+            table_data=[[u"`{0}`".format(g[u"valeur"]), g[u"nombre"],
+                         u", ".join(u"`{0}` (id {1})".format(
+                             e[u"famille"] or e[u"nom"], e[u"id"])
+                             for e in g[u"elements"])] for g in groupes],
+            columns=[u"Valeur", u"Elements", u"Qui"])
+
 if pieces:
     etats = OrderedDict()
     for p in pieces:
@@ -741,9 +773,12 @@ else:
     sortie.print_md(u"Aucun.")
 
 sortie.print_md(u"## Sortie")
-if chemin_json:
-    sortie.print_md(u"JSON : `{0}`".format(chemin_json))
+if not dossier:
+    sortie.print_md(u"**Aucun fichier ecrit** : boite de dossier annulee.")
+elif echec_ecriture is not None:
+    sortie.print_md(u"**ECHEC de l'ecriture du JSON** dans `{0}` : {1}".format(
+        chemin_json, echec_ecriture))
 else:
-    sortie.print_md(u"**Aucun fichier ecrit** (pas de dossier de sortie).")
+    sortie.print_md(u"JSON : `{0}`".format(chemin_json))
 sortie.print_md(u"*Lecture seule - aucune transaction ouverte. {0}*".format(
     VERSION))

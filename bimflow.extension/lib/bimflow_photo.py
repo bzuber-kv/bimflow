@@ -274,6 +274,62 @@ def _champs_nuls(enregistrement, champs):
     return manques
 
 
+# Identifiants qui doivent etre UNIQUES dans une maquette, par rubrique.
+# REF_Id : cle de jointure vers Ivion (socle). Un copier-coller dans Revit
+# recopie la valeur : l'unicite se controle A POSTERIORI (decision Bruno du
+# 2026-10-12), d'ou ce comptage a chaque photo. Le comptage ne corrige rien
+# et ne designe pas l'original : il liste les elements qui partagent la cle.
+IDENTIFIANTS_UNIQUES = OrderedDict([(u"volumes", (u"REF_Id",))])
+
+
+def _porteur(el, champ):
+    p = el.get(u"parametres", {}).get(champ)
+    return p.get(u"porteur") if p else None
+
+
+def controle_unicite(elements, champ):
+    """Controle d'unicite d'un identifiant, et ce qu'il a pu controler.
+
+    Rend {valeurs_controlees, portees_par_type, doublons}. Seules comptent
+    les valeurs LUES et portees par l'INSTANCE : une valeur portee par le
+    type est partagee par construction entre toutes ses instances, ce n'est
+    pas un doublon de saisie, et elle est comptee a part. null et NON_LU ne
+    sont pas des valeurs. La comparaison ignore casse et blancs de bord
+    (detection seulement : la valeur publiee reste celle lue)."""
+    groupes = OrderedDict()
+    par_type = 0
+    for el in elements:
+        v = el.get(champ)
+        if v is None or v == NON_LU or v == u"":
+            continue
+        if _porteur(el, champ) == u"type":
+            par_type += 1
+            continue
+        groupes.setdefault(v.strip().lower(), []).append(el)
+    resultat = []
+    for cle, els in groupes.items():
+        if len(els) < 2:
+            continue
+        resultat.append(OrderedDict([
+            (u"valeur", els[0].get(champ)),
+            (u"nombre", len(els)),
+            (u"elements", [OrderedDict([(u"id", e.get(u"id")),
+                                        (u"nom", e.get(u"nom")),
+                                        (u"famille", e.get(u"famille"))])
+                           for e in els]),
+        ]))
+    return OrderedDict([
+        (u"valeurs_controlees", sum(len(e) for e in groupes.values())),
+        (u"portees_par_type", par_type),
+        (u"doublons", resultat),
+    ])
+
+
+def doublons(elements, champ):
+    """Raccourci : la liste des doublons de controle_unicite."""
+    return controle_unicite(elements, champ)[u"doublons"]
+
+
 def bilan(photo):
     """Comptes par rubrique et liste des signalements.
 
@@ -319,7 +375,7 @@ def bilan(photo):
             (u"debut_partage_m", u"fin_partage_m", u"orientation_deg",
              u"type"), False)
     compter(u"volumes", photo.get(u"volumes", []),
-            (u"boite_mm",), True)
+            (u"famille", u"boite_mm"), True)
     compter(u"pieces", photo.get(u"pieces", []),
             (u"numero", u"nom", u"niveau", u"surface_m2", u"point_mm"),
             False)
@@ -327,6 +383,30 @@ def bilan(photo):
             (u"nombre_elements",), False)
     compter(u"liens", photo.get(u"liens", []),
             (u"type", u"epingle"), False)
+    for rubrique, champs in IDENTIFIANTS_UNIQUES.items():
+        elements = photo.get(rubrique, [])
+        for champ in champs:
+            ctrl = controle_unicite(elements, champ)
+            comptes[rubrique][u"unicite_" + champ] = ctrl
+            if elements and not ctrl[u"valeurs_controlees"]:
+                signalements.append(
+                    u"{0} : unicite de `{1}` NON CONTROLEE - aucune valeur "
+                    u"lue sur l'instance ({2} elements)".format(
+                        rubrique, champ, len(elements)))
+            if ctrl[u"portees_par_type"]:
+                signalements.append(
+                    u"{0} : `{1}` porte par le TYPE sur {2} element(s) - "
+                    u"unicite par element impossible".format(
+                        rubrique, champ, ctrl[u"portees_par_type"]))
+            for g in ctrl[u"doublons"]:
+                quoi = u", ".join(
+                    u"`{0}` (id {1})".format(e[u"famille"] or e[u"nom"],
+                                              e[u"id"])
+                    for e in g[u"elements"])
+                signalements.append(
+                    u"{0} : `{1}` EN DOUBLE - {2} sur {3} elements : {4}"
+                    .format(rubrique, champ, g[u"valeur"], g[u"nombre"],
+                            quoi))
     return comptes, signalements
 
 

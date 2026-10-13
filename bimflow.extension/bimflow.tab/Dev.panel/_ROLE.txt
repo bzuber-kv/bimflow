@@ -46,11 +46,12 @@ Y est, et l'ordre d'emploi est celui-la :
     sous-projets - declare sature, donc a trancher (B25). Doc :
     docs\sous_projets.md
 
-  + Photo maquette (LECTURE SEULE, NON EPROUVE, 2026-10-12) - exporte
+  + Photo maquette (LECTURE SEULE, A TOURNE le 2026-10-12 sur G_AN et
+    G_VL ; controle d'unicite non eprouve) - exporte
     l'etat du modele actif en un JSON : niveaux, quadrillages en
     coordonnees partagees, volumes (REF_/CLS_ lus par GUID), pieces,
-    sous-projets, liens. Dossier de sortie : fichier du poste,
-    Maj+clic pour le changer. Panneau definitif propose : Calage projet
+    sous-projets, liens. Dossier de sortie demande a chaque clic.
+    Panneau definitif propose : Calage projet
     (B25). Doc : docs\photo_maquette.md
 
 Les trois premiers ont tourne : la regle de sortie leur est acquise, et leur

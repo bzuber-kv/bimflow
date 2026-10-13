@@ -1,7 +1,8 @@
 # Photo maquette — état du modèle actif en un JSON
 
 > Repo `bimflow` · créé le 2026-10-12 · portée : **générique** (standard Keovia)
-> Bouton : `Dev.panel\PhotoMaquette.pushbutton` — **bleu, lecture seule, NON ÉPROUVÉ**
+> Bouton : `Dev.panel\PhotoMaquette.pushbutton` — **bleu, lecture seule** — a tourné le 2026-10-12 (version `a`) ; contrôle d'unicité et boîte de dossier (versions `b`, `c`) non éprouvés
+> Mis à jour le 2026-10-12 (version `c`) — motif : corrections de la relecture critique indépendante (§8).
 > Logique testable : `bimflow.extension\lib\bimflow_photo.py` · tests : `tests\test_bimflow_photo.py`
 
 ## 1. Ce que fait le bouton
@@ -12,14 +13,14 @@ une autre photo, on la rejoue hors Revit, on ne la corrige pas.
 
 | Rubrique | Champs |
 |---|---|
-| `en_tete` | modèle (`doc.Title`), chemin, date, version et build Revit, utilisateur Revit et Windows, état collaboratif / détaché / centrale, sous-projets fermés, repères (point de base, point topographique), transformation interne → partagé retenue, GUID utilisés |
+| `en_tete` | modèle (`doc.Title`), chemin, date, version et build Revit, utilisateur Revit et Windows, état collaboratif / détaché / copie locale lue, sous-projets fermés, repères (point de base, point topographique), transformation interne → partagé retenue, GUID utilisés |
 | `niveaux` | nom, Id, `elevation_pbp_mm`, `REF_Batiment`, `REF_Etage` ; pour contrôle : `project_elevation_mm`, `level_elevation_mm`, base d'élévation du type |
 | `quadrillages` | nom exact, Id, `debut_partage_m` / `fin_partage_m`, `orientation_deg`, `direction_deg`, type, courbe (ligne/arc) ; extrémités internes en mm et orientation interne pour contrôle |
 | `volumes` | nom, famille, Id, `REF_Zone`, `REF_Etage`, `REF_Batiment`, `CLS_Nature_volume`, `REF_Id`, `boite_mm` (min/max) |
-| `pieces` | numéro, nom, niveau, surface (m²), point de localisation (mm interne + m partagé), état (placée / non placée / surface nulle) |
+| `pieces` | numéro, nom, niveau, surface (m²), point de localisation (mm interne + m partagé), état (placée / non placée / surface nulle) ; triées par numéro |
 | `sous_projets` | nom, Id, ouvert, nombre d'éléments |
 | `liens` | nom, Id, type (Revit / CAO / Nuage de points), épinglé ; `charge` pour les liens Revit |
-| `comptes`, `signalements` | bilan par rubrique : nombre, champs null, statut de chaque paramètre |
+| `comptes`, `signalements` | bilan par rubrique : nombre, champs null, statut de chaque paramètre ; pour les volumes, `unicite_REF_Id` (valeurs contrôlées, valeurs portées par le type, doublons) |
 
 Chaque paramètre REF_/CLS_ est recopié au premier niveau (valeur seule) et
 détaillé dans `parametres` : `valeur`, `statut`, `porteur` (instance ou type).
@@ -45,8 +46,8 @@ détaillé dans `parametres` : `valeur`, `statut`, `porteur` (instance ou type).
   sens (directe ou inverse) **n'est pas supposé** : il est choisi sur le point
   topographique et le point de base, dont Revit donne la position interne et la
   position partagée. Résidus publiés dans l'en-tête ; aucun sens sous 1 mm ⇒
-  coordonnées partagées null et signalement. *Statut : hypothèse de
-  conception, à confirmer par la recette (résidus lus dans le JSON).*
+  coordonnées partagées null et signalement. *Statut : **mesuré** à la recette du 2026-10-12 — sens inverse,
+  résidu 0,000 mm sur les deux maquettes (§7).*
 - **Orientation d'un quadrillage** : azimut début → fin dans le repère partagé,
   0 = nord partagé, sens horaire, [0, 360). `direction_deg` la ramène dans
   [0, 180) — c'est elle qui compare deux axes. Arc : orientation null.
@@ -57,42 +58,130 @@ détaillé dans `parametres` : `valeur`, `statut`, `porteur` (instance ou type).
 `<dossier>\<modele>_<AAAA-MM-JJ_HHMM>.json`, UTF-8 sans BOM, jamais écrasé
 (`_2`, `_3`… si la minute est prise). Le chemin s'affiche en fin de rapport.
 
-Le dossier vient d'un **fichier du poste**, hors dépôt :
-`%APPDATA%\bimflow\photo_maquette.json`, clé `dossier_sortie` ; les `%VAR%` y
-sont développées. Absent ou inutilisable → le bouton demande un dossier et le
-retient. **Maj+clic** pour en changer. Le dossier configuré est créé s'il
-manque **et** que son parent existe ; sinon on redemande.
+Le dossier est **demandé à chaque clic** (décision Bruno, 2026-10-12) : une
+photo se range dans l'affaire de la maquette photographiée, et un dossier
+retenu d'une fois sur l'autre finirait par en ranger une dans la mauvaise
+affaire. Le dernier dossier choisi est rappelé dans le titre de la boîte
+(lu dans `%APPDATA%\bimflow\photo_maquette.json`), jamais utilisé sans être
+choisi. Boîte annulée : rien n'est écrit, et le rapport le dit.
 
-Exemple versionné : `config\photo_maquette.exemple.json` (`<affaire>` à
-remplacer). **Instance The Study** (portée : spécifique The Study) :
-
-```
-%USERPROFILE%\OneDrive - KEOVIA Solutions\WORK\affaires\A_049_TheStudy\context\ref\maquette_photo
-```
+Instance The Study (portée : spécifique The Study) :
+`%USERPROFILE%\OneDrive - KEOVIA Solutions\WORK\affaires\A_049_TheStudy\context\ref\maquette_photo`
 
 ⚠ **Écart signalé, non tranché** : `Audit volumes` et `Renommer volumes`
 interdisent toute sortie sous OneDrive ou `WORK` (`FRAGMENTS_INTERDITS`). Ce
-bouton, à la demande du brief du 2026-10-12, écrit là où la configuration le
-dit — y compris OneDrive. Règle commune à décider.
+bouton, à la demande du brief du 2026-10-12, écrit dans le dossier choisi —
+y compris OneDrive. La règle §8g (`03_REGLES_DEV.md`) n'interdit que le
+*code* dans OneDrive, pas les données. Règle commune à décider.
 
-## 5. Limites connues
+## 5. Unicité des identifiants — contrôle a posteriori
+
+Un copier-coller Revit (copier, réseau, miroir, groupe, « coller aligné »)
+recopie toutes les valeurs d'instance, `REF_Id` compris : l'unicité d'un
+identifiant écrit dans un paramètre n'est **pas** garantie par Revit. Choix
+retenu (Bruno, 2026-10-12) : pas de prévention, une **unicité garantie a
+posteriori**, par contrôle à chaque mise à jour régulière de la production,
+quitte à tenir des matrices de passage datées. Ce bouton porte le contrôle
+(liste `IDENTIFIANTS_UNIQUES` de `lib\bimflow_photo.py`) ; l'arbitrage et la
+correction relèvent d'un autre outil, à spécifier.
+Règle candidate — **générique, à recadrer** ; cas d'origine : The Study,
+VOL_090 / VOL_091 (2026-10-12).
+
+## 6. Limites connues
 
 - Sous-projets fermés : leurs éléments ne sont pas chargés et manquent à tous
   les comptes. Annoncés en tête de rapport ; leur nombre d'éléments vaut null.
 - `nombre_elements` d'un sous-projet compte toutes les instances que Revit y
   range (`ElementWorksetFilter`), éléments sans catégorie compris.
-- Maquette centrale : la photo décrit l'état synchronisé à l'instant de la
-  lecture.
+- Maquette collaborative non détachée (cas de toute maquette cloud) : la
+  photo décrit la **copie locale** — dernière synchronisation de
+  l'utilisateur **plus** ses modifications non synchronisées — et non l'état
+  de la centrale. Champ `collaboratif_non_detache` de l'en-tête.
 - Quadrillages multi-segments : chaque segment est un `Grid` et sort comme tel ;
   le regroupement n'est pas fait.
 - Liens IFC : sortent en type `Revit` (ce sont des `RevitLinkInstance`).
 
-## 6. Recette
+## 7. Recette
 
-À consigner ici après exécution : maquette, date, comptes par rubrique,
-résidus de la transformation, signalements.
+Première exécution le **2026-10-12**, version `2026-10-12a`, Revit 2026
+(26.4.0.32), maquettes **collaboratives cloud, copie locale lue**, de The
+Study, aucun sous-projet fermé. Portée des comptes : **spécifique The
+Study** ; portée des constats sur l'outil : générique.
 
-| Maquette | Date | Niveaux | Quadrillages | Volumes | Pièces | Sous-projets | Liens | Résidu (mm) | Signalements |
+| Maquette | Heure | Niveaux | Quadrillages | Volumes | Pièces | Sous-projets | Liens | Résidu transformation | Signalements |
 |---|---|---|---|---|---|---|---|---|---|
-| thestudy_G_AN | — | | | | | | | | |
-| thestudy_G_VZ | — | | | | | | | | |
+| `thestudy_G_AN` | 16:58 | 23 | 73 | 0 | 0 | 37 (1 753 éléments, 16 vides) | 19 (18 nuages, 1 Revit) | 0,000 mm (inverse) | 1 |
+| `thestudy_G_VL` | 16:59 | 23 | 0 | 217 | 0 | 36 (2 189 éléments, 17 vides) | 1 (Revit) | 0,000 mm (inverse) | 6 |
+
+**Ce que la recette établit sur l'outil (mesuré).**
+- Le sens de `GetTotalTransform` est l'**inverse** : résidu 0,000 mm sur le
+  point de base et le point topographique, contre ~9,7·10⁹ mm pour le sens
+  direct. Le choix automatique fonctionne ; les coordonnées partagées sont
+  fiables.
+- Point de base relu à (296 934,64 ; 5 038 973,46 ; 94,695 m) et point
+  topographique à z = 0 : conforme au géoréférencement consigné au PEP A_049.
+- `elevation_pbp_mm` = `Level.Elevation` sur les 23 niveaux, dont la base
+  d'élévation de type est le point de base : contre-vérification cohérente.
+- Z partagé des quadrillages = 123,76 m : c'est le z = 0 interne, donc la
+  cote de l'origine interne. Exact, mais **sans signification** pour un
+  quadrillage, qui n'a pas d'altitude propre.
+- Le champ `nom` d'un volume in situ est le **nom du type**
+  (`Volume Ivion` pour 210 volumes) ; le nom porteur de sens est `famille`
+  (`VOL_nnn__…`). À clarifier dans le JSON (point ouvert ci-dessous).
+
+**Ce que la recette fait apparaître dans les maquettes (mesuré, à traiter côté A_049).**
+- `REF_Etage` vide sur les deux niveaux `Site` (`EXT_BLVD`, `EXT_PARC`) :
+  vide légitime ou valeur manquante, à décider.
+- Quadrillages : deux familles d'orientation — 31,34° / 121,34° (Senior
+  Central, Junior, Middle, parking) et 37,94° / 127,94° (Senior East),
+  soit **6,60°** entre les deux trames.
+- `thestudy_G_VL` : **2 volumes sans aucun paramètre** (`Volume 1`
+  id 5532336, `Volume 2` id 5530844, emprise ~36 × 67 m) — **chantier en
+  cours** déclaré par Bruno (rattacher les zones extérieures aux étages),
+  pas un défaut. Et **un `REF_Id` en double** (`dbe39340-…`) sur `VOL_090__SC_Bp_Amg_1p_3p__FLOOR_2__ETAGE`
+  et `VOL_091__SC_Bp_Amg_1p_3p__ROOF__TOITURE` — or `REF_Id` est la clé de
+  jointure vers Ivion et ne doit jamais se répéter. Cause confirmée par
+  Bruno : VOL_091 obtenu par **copie de VOL_090** après écriture des
+  paramètres — le copier-coller Revit recopie toutes les valeurs d'instance.
+  217 volumes contre 202 au 2026-09-24.
+- Aucune pièce dans l'une ou l'autre maquette.
+
+**Points ouverts sur l'outil.**
+1. `nom` d'un volume : publier aussi le nom de famille en tête, ou renommer
+   le champ `nom_type`.
+2. ~~Doublons de `REF_Id`~~ — **fait** (version `2026-10-12b`) : comptés
+   au bilan, listés au rapport (section « Unicité ») et dans le JSON
+   (`comptes.volumes.unicite_REF_Id`). Rejoué hors dépôt sur
+   `thestudy_G_VL_2026-10-12_1659.json` (photo du 2026-10-12 16:59) : trouve
+   VOL_090 / VOL_091. Rien n'est corrigé, l'original n'est pas désigné.
+3. Les deux JSON ont été écrits dans `Downloads`, pas dans `maquette_photo`.
+
+## 8. Relecture critique indépendante (2026-10-12)
+
+Passe faite par un agent qui n'a pas écrit le code, sur `744ec22..HEAD`.
+**Aucun point bloquant.** Corrigé en version `c` :
+
+1. Section « Unicité » qui affichait « Aucun doublon » quand `REF_Id`
+   n'avait pu être lu nulle part → désormais « non contrôlée », avec le
+   nombre de valeurs réellement contrôlées.
+2. En-tête qui affirmait « état synchronisé de la centrale » → c'est la
+   copie locale ; champ renommé `collaboratif_non_detache`.
+3. Faux doublons possibles quand `REF_Id` est porté par le **type** → ces
+   valeurs sont exclues du contrôle et signalées à part.
+4. Exceptions avalées sans `NON_LU` (`ProjectElevation`, coordonnées
+   partagées, `famille`) et import CAO illisible qui disparaissait sans
+   signalement → `NON_LU` ou signalement ; `famille` suivie au bilan.
+5. Message « pas de dossier » après un **échec d'écriture** → messages
+   distincts ; le rappel du dossier n'est mis à jour qu'après une écriture
+   réussie.
+6. Mentions périmées « non éprouvé », « G_VZ », « hypothèse » → mises à jour.
+
+Aussi : noms de famille entre backticks dans le rapport (un nom `__…__`
+pourrait passer en gras), comparaison des identifiants insensible à la casse
+et aux blancs de bord, pièces triées.
+
+**Restent ouverts** : champ `nom` d'un volume = nom du **type** (renommer en
+`nom_type` ? — impact sur les consommateurs du JSON) ; la boîte de dossier ne
+s'ouvre pas sur le dernier dossier (rappel seulement dans le titre, qui peut
+être tronqué) ; liens de coordination (Navisworks) non couverts ; écriture du
+JSON non atomique.
