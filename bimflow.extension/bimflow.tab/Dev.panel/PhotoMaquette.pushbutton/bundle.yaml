@@ -7,8 +7,8 @@ tooltip: >-
   (REF_/CLS_ lus par GUID, contrôle d'unicité de REF_Id), pièces,
   sous-projets, liens. Dossier de sortie demandé à chaque clic, boîte
   ouverte sur le dernier choisi.
-  A tourné le 2026-10-13 (version 2026-10-13a) ; 2026-10-13b = message
-  d'unicité sur maquette sans volume, NON ÉPROUVÉ.
+  Éprouvé dans Revit le 2026-10-13 (versions a et b, thestudy_G_AN et
+  thestudy_G_VL) ; seul le repli pick_folder n'a jamais servi.
   Doc : docs\photo_maquette.md
 author: Keovia Solutions inc.
 highlight: new

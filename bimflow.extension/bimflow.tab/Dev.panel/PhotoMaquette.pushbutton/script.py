@@ -25,11 +25,11 @@ champ, regles de lecture, reperes, recette, historique).
 # STATUT : version 2026-10-12a A TOURNE le 2026-10-12 sur thestudy_G_AN et #
 # thestudy_G_VL (residu de la transformation 0,000 mm) ; version           #
 # 2026-10-12c A TOURNE le 2026-10-13 sur thestudy_G_VL (boite de dossier,  #
-# section Unicite, en-tete copie locale) ; version 2026-10-13a A TOURNE le #
-# 2026-10-13 sur thestudy_G_AN et thestudy_G_VL (noms avec __ entiers,     #
-# boite sur le dernier dossier, nom_type, aucun .tmp, date avec fuseau) -  #
-# repli pick_folder jamais declenche. NON EPROUVE : version 2026-10-13b    #
-# (message d'unicite sur maquette sans volume). Recette :                  #
+# section Unicite, en-tete copie locale). EPROUVE dans Revit le 2026-10-13 #
+# (versions 2026-10-13a et 2026-10-13b, thestudy_G_AN et thestudy_G_VL :   #
+# noms avec __ entiers, boite sur le dernier dossier, nom_type, aucun      #
+# .tmp, date avec fuseau, message d'unicite sur maquette sans volume) ;    #
+# seul le repli pick_folder n'a jamais servi. Recette :                    #
 # docs\\photo_maquette.md §9.                                               #
 #############################################################################
 
