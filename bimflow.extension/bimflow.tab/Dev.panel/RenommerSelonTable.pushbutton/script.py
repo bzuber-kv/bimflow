@@ -4,7 +4,7 @@
 #############################################################################
 # STATUT : version 2026-10-13b NON EPROUVEE dans Revit. La 2026-10-13a a    #
 # tue Revit a la lecture (exceptions attrapees en serie dans une boucle,    #
-# docs\ecrire_dans_revit.md §8). Logique testee sous CPython et            #
+# docs\\ecrire_dans_revit.md §8). Logique testee sous CPython et           #
 # pre-simulee hors Revit. Ce script ECRIT en mode reel : le resultat        #
 # affiche ne prouve rien, la verification se fait par une photo maquette    #
 # relancee apres coup (R19 fait 6).                                         #
