@@ -241,6 +241,12 @@ __marimo__/
 /tools/sitemodel/.venv/
 /tools/sitemodel/travail/
 
+# Outil marquages : meme logique que sitemodel. Le venv se reconstruit depuis
+# requirements.txt ; travail\ recevrait des donnees d'affaire (photos, noms
+# graves), qui n'entrent jamais au depot.
+/tools/marquages/.venv/
+/tools/marquages/travail/
+
 # Dropbox / Windows
 .dropbox
 .dropbox.attr

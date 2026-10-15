@@ -1,0 +1,37 @@
+{
+  "_portee": "generique - a recadrer. Cas d'origine : A_049, esplanade, pilote du 2026-10-09 (bordereau 2026-10-09_CLOTURE_marquages_plans_pilote.md). Une autre surface = un autre fichier, jamais une modification du code.",
+  "module": {
+    "_note": "pas du module, joints inclus, en mm (releve sur site). La longueur est le cote le long des joints continus.",
+    "largeur_mm": 300.0,
+    "longueur_mm": 600.0
+  },
+  "vue": {
+    "_note": "resolution des vues redressees produites.",
+    "px_par_mm": 2.0
+  },
+  "camera": {
+    "_note": "focale en pixels divisee par la diagonale de l'image, auto-calibree par les points de fuite (F1 : iPhone 15 Pro Max, objectif principal, f = 3946 px pour 7140 px de diagonale). distance_*_m bornent la recherche du pas des joints.",
+    "focale_sur_diagonale": 0.552661,
+    "distance_min_m": 0.4,
+    "distance_max_m": 1.6
+  },
+  "controle": {
+    "_note": "seuils du controle de cadrage (F5) : 16 faux refuses sur 16, 2 vrais refuses.",
+    "contraste_joint_min": 18.0,
+    "joints_min": 3,
+    "lettres_coupees_max": 1,
+    "lettres_min_par_ligne": 4,
+    "capitale_max_mm": 42.0,
+    "lignes_lisibles": [
+      {"capitale_min_mm": 12.0, "lettres_min": 6},
+      {"capitale_min_mm": 30.0, "lettres_min": 4}
+    ]
+  },
+  "empreinte": {
+    "_note": "appariement du grain (F6) : 150 a 440 points pour un meme pave, 10 au plus pour deux paves differents, sur 5 886 paires. Le seuil se place dans ce trou.",
+    "points_sift": 4000,
+    "rapport_lowe": 0.75,
+    "tolerance_ransac_px": 4.0,
+    "seuil_meme_pave": 25
+  }
+}
